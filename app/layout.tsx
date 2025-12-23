@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Noto_Serif_SC } from "next/font/google"; // 引入谷歌字体
 import "./globals.css";
+import GlobalEffects from "@/components/GlobalEffects";
 
 // 英文字体
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -26,6 +27,8 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className={`${inter.variable} ${notoSerif.variable} font-sans antialiased bg-stone-50`}>
+        {/* 全局特效挂载点 */}
+        {/* <GlobalEffects /> */}
         {children}
       </body>
     </html>
