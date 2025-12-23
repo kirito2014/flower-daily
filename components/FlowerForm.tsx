@@ -1,37 +1,41 @@
 'use client';
 
-import { createFlower, updateFlower } from '@/app/actions/admin';
+import { createFlower, updateFlower, generateFlowerContent } from '@/app/actions/admin';
 import { Flower } from '@prisma/client';
-import { Save, Loader2 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { Save, Loader2, Sparkles, Image as ImageIcon, Eye } from 'lucide-react';
+import { useRef, useState, useEffect } from 'react';
 
-// 定义 props，flower 是可选的
 interface FlowerFormProps {
-  flower?: Flower;           // 如果有值，说明是编辑模式
-  onSuccess?: () => void;    // 操作成功后的回调（比如关闭编辑框）
+  flower?: Flower;
+  onSuccess?: () => void;
 }
 
 export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
+  const imageUrlRef = useRef<HTMLInputElement>(null);
+  
   const [loading, setLoading] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  
+  const [previewUrl, setPreviewUrl] = useState(flower?.imageUrl || '');
 
-  // 根据是否有 flower 决定是“创建”还是“更新”
+  useEffect(() => {
+    if (flower?.imageUrl) {
+      setPreviewUrl(flower.imageUrl);
+    }
+  }, [flower]);
+
   const handleSubmit = async (formData: FormData) => {
     setLoading(true);
     try {
       if (flower) {
-        // 编辑模式：调用 updateFlower
         await updateFlower(flower.id, formData);
       } else {
-        // 新增模式：调用 createFlower
         await createFlower(formData);
-        formRef.current?.reset(); // 新增成功后清空表单
+        formRef.current?.reset();
+        setPreviewUrl('');
       }
-      
-      // 如果有回调（比如关闭编辑窗口），则执行
-      if (onSuccess) {
-        onSuccess();
-      }
+      if (onSuccess) onSuccess();
     } catch (error) {
       console.error(error);
       alert('操作失败，请重试');
@@ -40,60 +44,168 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
     }
   };
 
+  const handleAIGenerate = async () => {
+    const form = formRef.current;
+    if (!form) return;
+    
+    const formData = new FormData(form);
+    const name = formData.get('name') as string;
+
+    if (!name) {
+      alert('请先输入花名');
+      return;
+    }
+
+    setAiLoading(true);
+    try {
+      const data = await generateFlowerContent(name);
+      const langInput = form.elements.namedItem('language') as HTMLInputElement;
+      const habitInput = form.elements.namedItem('habit') as HTMLInputElement;
+
+      if (langInput) langInput.value = data.language || '';
+      if (habitInput) habitInput.value = data.habit || '';
+
+    } catch (error: any) {
+      console.error(error);
+      alert(error.message || 'AI 生成失败');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handlePreviewImage = () => {
+    if (imageUrlRef.current) {
+      const url = imageUrlRef.current.value;
+      if (url) {
+        setPreviewUrl(url);
+      } else {
+        alert("请先输入图片链接");
+      }
+    }
+  };
+
   return (
     <form 
       ref={formRef}
       action={handleSubmit}
-      className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300"
+      className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300"
     >
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-stone-600">花名</label>
-          <input 
-            name="name" 
-            required 
-            defaultValue={flower?.name} // 回填数据
-            className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-stone-400 transition"
-            placeholder="例如：红牡丹"
-          />
+      {/* 布局重构：改为左右两列 Grid 布局 
+         这能确保右侧的所有输入框宽度完全一致，且与左侧对齐
+      */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        {/* === 左列：花名 + 图片预览 === */}
+        <div className="space-y-5">
+          
+          {/* 1. 花名 (带 AI 按钮) */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-stone-600 block">花名</label>
+            <div className="flex rounded-lg shadow-sm">
+              <input 
+                name="name" 
+                required 
+                defaultValue={flower?.name} 
+                className="flex-1 min-w-0 block w-full px-3 py-2 rounded-l-lg border border-stone-300 text-sm outline-none focus:ring-2 focus:ring-stone-400 focus:border-stone-400 transition" 
+                placeholder="例如：红牡丹" 
+              />
+              <button 
+                type="button" 
+                onClick={handleAIGenerate}
+                disabled={aiLoading || loading}
+                className="inline-flex items-center px-3 py-2 border border-l-0 border-purple-200 bg-purple-50 text-purple-600 hover:bg-purple-100 rounded-r-lg text-xs font-medium transition whitespace-nowrap"
+                title="自动生成信息"
+              >
+                {aiLoading ? <Loader2 className="animate-spin w-4 h-4 mr-1"/> : <Sparkles className="w-4 h-4 mr-1"/>}
+                AI 生成
+              </button>
+            </div>
+          </div>
+
+          {/* 2. 图片预览窗 (填满左列剩余宽度) */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-stone-600 block">效果预览</label>
+            <div className="w-full aspect-[4/3] bg-stone-100 border-2 border-dashed border-stone-300 rounded-xl overflow-hidden flex items-center justify-center relative group">
+              {previewUrl ? (
+                <img 
+                  src={previewUrl} 
+                  alt="Preview" 
+                  className="w-full h-full object-cover animate-in fade-in duration-500"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                    setPreviewUrl('');
+                  }}
+                />
+              ) : (
+                <div className="text-stone-400 flex flex-col items-center gap-2">
+                  <ImageIcon size={32} strokeWidth={1.5} />
+                  <span className="text-xs">暂无图片</span>
+                </div>
+              )}
+            </div>
+          </div>
+
         </div>
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-stone-600">花语</label>
-          <input 
-            name="language" 
-            required 
-            defaultValue={flower?.language} // 回填数据
-            className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-stone-400 transition"
-            placeholder="例如：雍容华贵"
-          />
-        </div>
-        <div className="space-y-1 md:col-span-2">
-          <label className="text-sm font-medium text-stone-600">图片链接</label>
-          <input 
-            name="imageUrl" 
-            required 
-            defaultValue={flower?.imageUrl} // 回填数据
-            className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm font-mono outline-none focus:ring-2 focus:ring-stone-400 transition"
-            placeholder="https://..."
-          />
-        </div>
-        <div className="space-y-1 md:col-span-2">
-          <label className="text-sm font-medium text-stone-600">习性标签</label>
-          <input 
-            name="habit" 
-            required 
-            defaultValue={flower?.habit} // 回填数据
-            className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-stone-400 transition"
-            placeholder="例如：喜阳、耐寒"
-          />
+
+        {/* === 右列：花语 + 链接 + 习性 === */}
+        <div className="space-y-5">
+          
+          {/* 1. 花语 (与左侧花名对齐) */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-stone-600 block">花语</label>
+            <input 
+              name="language" 
+              required 
+              defaultValue={flower?.language} 
+              className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-stone-400 transition" 
+              placeholder="例如：雍容华贵" 
+            />
+          </div>
+
+          {/* 2. 图片链接 (带预览按钮) */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-stone-600 block">图片链接</label>
+            <div className="flex gap-2">
+              <input 
+                name="imageUrl" 
+                ref={imageUrlRef}
+                required 
+                defaultValue={flower?.imageUrl} 
+                className="flex-1 min-w-0 px-3 py-2 border border-stone-300 rounded-lg text-sm font-mono outline-none focus:ring-2 focus:ring-stone-400 transition" 
+                placeholder="https://..." 
+              />
+              <button
+                type="button"
+                onClick={handlePreviewImage}
+                className="shrink-0 px-3 py-2 bg-stone-100 border border-stone-200 text-stone-600 rounded-lg hover:bg-stone-200 transition text-xs font-medium flex items-center gap-1 whitespace-nowrap"
+              >
+                <Eye size={14} />
+                预览
+              </button>
+            </div>
+          </div>
+
+          {/* 3. 习性标签 */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-stone-600 block">习性标签</label>
+            <input 
+              name="habit" 
+              required 
+              defaultValue={flower?.habit} 
+              className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-stone-400 transition" 
+              placeholder="例如：喜阳、耐寒" 
+            />
+          </div>
+
         </div>
       </div>
 
-      <div className="pt-2 flex justify-end">
+      {/* 底部按钮区 */}
+      <div className="pt-4 flex justify-end border-t border-stone-100">
         <button 
           type="submit" 
-          disabled={loading}
-          className="flex items-center gap-2 px-6 py-2 bg-stone-900 text-white text-sm font-medium rounded-lg hover:bg-stone-800 active:scale-95 transition disabled:opacity-70"
+          disabled={loading || aiLoading}
+          className="flex items-center gap-2 px-8 py-2.5 bg-stone-900 text-white text-sm font-medium rounded-lg hover:bg-stone-800 active:scale-95 transition disabled:opacity-70 shadow-lg shadow-stone-200"
         >
           {loading ? <Loader2 className="animate-spin w-4 h-4"/> : <Save className="w-4 h-4"/>}
           {flower ? '保存修改' : '立即录入'}

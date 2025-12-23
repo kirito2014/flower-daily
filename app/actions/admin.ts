@@ -97,7 +97,10 @@ export async function generateFlowerContent(flowerName: string) {
   if (!config?.apiKey) throw new Error('AI 未配置');
 
   const openai = new OpenAI({ baseURL: config.baseUrl, apiKey: config.apiKey });
-  const prompt = `请根据花名"${flowerName}"生成JSON: { language: "唯美花语", habit: "习性" }`;
+  const prompt = `请根据花名"${flowerName}"生成以下 JSON 数据：
+    1. language: 提炼一句唯美、治愈的花语（15字以内）。
+    2. habit: 简短的生长习性（例如：喜阳、耐旱）。
+    只返回纯 JSON。`;
 
   const completion = await openai.chat.completions.create({
     messages: [{ role: "user", content: prompt }],
