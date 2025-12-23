@@ -5,7 +5,16 @@ import { getFlowers, deleteFlower } from '@/app/actions/admin';
 import FlowerForm from '@/components/FlowerForm';
 import AdminFlowerCard from '@/components/AdminFlowerCard';
 import { Flower } from '@prisma/client';
-import { Search, Filter, ArrowUpDown, Loader2, SortAsc, Calendar, Clock } from 'lucide-react';
+import { 
+  Search, 
+  Filter, 
+  ArrowUpDown, 
+  Loader2, 
+  SortAsc, 
+  Calendar, 
+  Clock, 
+  X // 引入 X 图标
+} from 'lucide-react';
 
 export default function AdminFlowersPage() {
   const [flowers, setFlowers] = useState<Flower[]>([]);
@@ -16,10 +25,9 @@ export default function AdminFlowersPage() {
   const [filterText, setFilterText] = useState('');
   const [sortKey, setSortKey] = useState('created_desc');
 
-  // === 加载数据 (暴露给子组件调用) ===
+  // === 加载数据 ===
   const loadFlowers = async () => {
     try {
-      // 只有在没有数据时才显示全屏 Loading，避免修改刷新时闪烁
       if (flowers.length === 0) setLoading(true);
       const data = await getFlowers();
       setFlowers(data);
@@ -91,14 +99,19 @@ export default function AdminFlowersPage() {
           <span className="w-1.5 h-4 bg-stone-800 rounded-full"></span>
           新花卉录入
         </h3>
-        {/* 录入成功后也刷新列表 */}
+        {/* 录入成功后刷新列表 */}
         <FlowerForm onSuccess={loadFlowers} />
       </div>
 
       <div className="h-px bg-stone-200" />
 
+      {/* === 工具栏 === */}
       <div className="flex flex-col md:flex-row gap-4 justify-between md:items-center bg-stone-50 p-4 rounded-xl border border-stone-200/60 sticky top-20 z-10 backdrop-blur-md bg-stone-50/90">
+        
+        {/* 左侧：搜索与筛选 */}
         <div className="flex flex-1 gap-3 flex-col sm:flex-row">
+          
+          {/* 1. 搜索输入框 */}
           <div className="relative group flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 group-focus-within:text-blue-500 transition-colors" size={16} />
             <input 
@@ -106,9 +119,22 @@ export default function AdminFlowersPage() {
               placeholder="搜索花名 (中/英)..."
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition shadow-sm"
+              // 修改：pr-4 -> pr-10 为清空按钮留出位置
+              className="w-full pl-9 pr-10 py-2.5 bg-white border border-stone-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition shadow-sm"
             />
+            {/* 清空按钮：仅在有内容时显示 */}
+            {searchText && (
+              <button 
+                onClick={() => setSearchText('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-full p-1 transition"
+                title="清空搜索"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
+
+          {/* 2. 筛选输入框 */}
           <div className="relative group flex-1">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 group-focus-within:text-purple-500 transition-colors" size={16} />
             <input 
@@ -116,11 +142,23 @@ export default function AdminFlowersPage() {
               placeholder="筛选花语或习性..."
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-100 focus:border-purple-400 transition shadow-sm"
+              // 修改：pr-4 -> pr-10
+              className="w-full pl-9 pr-10 py-2.5 bg-white border border-stone-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-100 focus:border-purple-400 transition shadow-sm"
             />
+            {/* 清空按钮 */}
+            {filterText && (
+              <button 
+                onClick={() => setFilterText('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-full p-1 transition"
+                title="清空筛选"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
         </div>
 
+        {/* 右侧：排序 */}
         <div className="relative min-w-[180px]">
           <div className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 pointer-events-none">
              {sortKey.includes('name') ? <SortAsc size={16}/> : (sortKey.includes('updated') ? <Clock size={16}/> : <Calendar size={16}/>)}
@@ -145,7 +183,6 @@ export default function AdminFlowersPage() {
           <p className="text-sm">正在加载花圃...</p>
         </div>
       ) : processedFlowers.length > 0 ? (
-        // 强制 4 列布局以配合卡片的索引计算逻辑
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {processedFlowers.map((flower, index) => (
             <AdminFlowerCard 
@@ -153,7 +190,7 @@ export default function AdminFlowersPage() {
               index={index}
               flower={flower} 
               onDelete={handleDelete}
-              onUpdate={loadFlowers} // 传递刷新函数
+              onUpdate={loadFlowers}
               isEditing={editingId === flower.id}
               onToggleEdit={() => setEditingId(current => current === flower.id ? null : flower.id)}
               onCloseEdit={() => setEditingId(null)}

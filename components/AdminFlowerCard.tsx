@@ -133,9 +133,15 @@ export default function AdminFlowerCard({
             {flower.englishName}
           </p>
         </div>
+        {/* 分隔线 */}
         <div className="w-px h-8 bg-stone-200 shrink-0"></div>
-        <div className="flex flex-col items-start gap-1 overflow-hidden min-w-0">
-          <p className="text-stone-500 text-xs font-mono opacity-80 text-left line-clamp-1 w-full" title={flower.language}>
+        
+        {/* 右侧：花语 + 习性 (修改点：添加 flex-1 撑满剩余空间，items-end 靠右对齐) */}
+        <div className="flex flex-col items-end gap-1 overflow-hidden min-w-0 flex-1">
+          <p 
+            className="text-stone-500 text-xs font-mono opacity-80 text-right line-clamp-1 w-full" 
+            title={flower.language}
+          >
             {flower.language}
           </p>
           <span className="px-2 py-0.5 bg-stone-100 text-stone-600 text-[10px] rounded-md whitespace-nowrap">
