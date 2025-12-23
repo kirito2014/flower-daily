@@ -2,14 +2,14 @@
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { verifyPassword } from '@/lib/crypto';
 
 export async function login(formData: FormData) {
   const password = formData.get('password') as string;
+  const storedHash = process.env.ADMIN_PASSWORD || '';
 
-  // 比对环境变量中的密码
-  if (password === process.env.ADMIN_PASSWORD) {
-    // 登录成功：设置 Cookie (有效期 1 天)
-    // 注意：await cookies() 是 Next.js 15 的写法，如果是 14 请直接用 cookies()
+  // 使用加密工具进行比对
+  if (verifyPassword(password, storedHash)) {
     const cookieStore = await cookies();
     cookieStore.set('admin_session', 'true', {
       httpOnly: true,
@@ -24,8 +24,10 @@ export async function login(formData: FormData) {
   return { success: false, error: '密码错误' };
 }
 
+// 新增：登出逻辑
 export async function logout() {
   const cookieStore = await cookies();
   cookieStore.delete('admin_session');
-  redirect('/');
+  // 登出后强制跳转回登录页
+  redirect('/login');
 }
