@@ -2,7 +2,7 @@
 
 import { createFlower, updateFlower, generateFlowerContent } from '@/app/actions/admin';
 import { Flower } from '@prisma/client';
-import { Save, Loader2, Sparkles, Image as ImageIcon, Eye, X } from 'lucide-react'; // 引入 X 图标
+import { Save, Loader2, Sparkles, Image as ImageIcon, Eye, X, Plus } from 'lucide-react';
 import { useRef, useState, useEffect } from 'react';
 
 interface FlowerFormProps {
@@ -13,6 +13,7 @@ interface FlowerFormProps {
 export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const imageUrlRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -84,19 +85,48 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
     }
   };
 
-  // 新增：清空指定输入框的内容
   const handleClear = (name: string) => {
     if (formRef.current) {
       const input = formRef.current.elements.namedItem(name) as HTMLInputElement;
       if (input) {
         input.value = '';
-        input.focus(); // 清空后自动聚焦，体验更好
-        // 特殊处理：如果是清空图片链接，也要清空预览图
+        input.focus();
         if (name === 'imageUrl') {
           setPreviewUrl('');
         }
       }
     }
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('请选择图片文件');
+      return;
+    }
+    
+    if (file.size > 2 * 1024 * 1024) {
+      alert('图片过大，建议使用 2MB 以内的图片');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      if (base64 && imageUrlRef.current) {
+        imageUrlRef.current.value = base64;
+        setPreviewUrl(base64);
+      }
+    };
+    reader.readAsDataURL(file);
+    
+    e.target.value = '';
   };
 
   return (
@@ -110,17 +140,16 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
         {/* === 左列：花名 + 图片预览 === */}
         <div className="space-y-5">
           
-          {/* 1. 花名 (带 AI 按钮 + 清空按钮) */}
+          {/* 1. 花名 */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-stone-600 block">花名</label>
             <div className="flex rounded-lg shadow-sm">
-              {/* 包裹一个 relative group 容器用于定位清空按钮 */}
               <div className="relative flex-1 min-w-0 group">
                 <input 
                   name="name" 
                   required 
                   defaultValue={flower?.name} 
-                  className="block w-full px-3 py-2 rounded-l-lg border border-stone-300 text-sm outline-none focus:ring-2 focus:ring-stone-400 focus:border-stone-400 transition pr-8" // pr-8 避让按钮
+                  className="block w-full px-3 py-2 rounded-l-lg border border-stone-300 text-sm outline-none focus:ring-2 focus:ring-stone-400 focus:border-stone-400 transition pr-8"
                   placeholder="例如：红牡丹" 
                 />
                 <button 
@@ -173,7 +202,7 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
         {/* === 右列：花语 + 链接 + 习性 === */}
         <div className="space-y-5">
           
-          {/* 1. 花语 (带清空按钮) */}
+          {/* 1. 花语 */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-stone-600 block">花语</label>
             <div className="relative group">
@@ -195,10 +224,12 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
             </div>
           </div>
 
-          {/* 2. 图片链接 (带预览按钮 + 清空按钮) */}
+          {/* 2. 图片链接 */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-stone-600 block">图片链接</label>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
+              
+              {/* 输入框 */}
               <div className="relative flex-1 group">
                 <input 
                   name="imageUrl" 
@@ -217,18 +248,40 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
                   <X size={14} />
                 </button>
               </div>
+
+              {/* 本地上传按钮 */}
+              <input 
+                type="file" 
+                ref={fileInputRef}
+                className="hidden" 
+                accept="image/*"
+                onChange={handleFileChange}
+              />
+              <button
+                type="button"
+                onClick={handleUploadClick}
+                className="shrink-0 w-9 h-9 flex items-center justify-center rounded-full bg-stone-100 border border-stone-200 text-stone-600 hover:bg-stone-200 hover:scale-105 active:scale-95 transition shadow-sm"
+                title="上传本地图片"
+              >
+                <Plus size={18} />
+              </button>
+
+              {/* === 修改：圆形预览按钮 (无文字) === */}
               <button
                 type="button"
                 onClick={handlePreviewImage}
-                className="shrink-0 px-3 py-2 bg-stone-100 border border-stone-200 text-stone-600 rounded-lg hover:bg-stone-200 transition text-xs font-medium flex items-center gap-1 whitespace-nowrap"
+                // 修改了 class: w-9 h-9, rounded-full, items-center justify-center, 移除了 padding 和 text-xs font-medium
+                className="shrink-0 w-9 h-9 flex items-center justify-center rounded-full bg-stone-100 border border-stone-200 text-stone-600 hover:bg-stone-200 hover:scale-105 active:scale-95 transition shadow-sm"
+                title="预览图片链接" // 添加 title 方便提示
               >
-                <Eye size={14} />
-                预览
+                {/* 调整了图标大小以匹配圆形容器 */}
+                <Eye size={18} /> 
               </button>
+              
             </div>
           </div>
 
-          {/* 3. 习性标签 (带清空按钮) */}
+          {/* 3. 习性标签 */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-stone-600 block">习性标签</label>
             <div className="relative group">

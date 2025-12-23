@@ -1,10 +1,9 @@
-// app/page.tsx
 'use client';
 
 import { useState } from 'react';
 import { Flower } from '@prisma/client';
 import FlowerCard3D from '@/components/FlowerCard3D';
-import { Loader2, Sparkles, Github, ExternalLink, Package } from 'lucide-react'; // 引入图标
+import { Loader2, Sparkles, Github, ExternalLink, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function HomePage() {
@@ -16,8 +15,12 @@ export default function HomePage() {
 
   // 获取花朵数据
   const fetchFlower = async () => {
+    if (loading) return; // 防止重复点击
     setLoading(true);
+    
     try {
+      // 这里的 seenIds 是当前组件状态，点击“重新开始”后它会被重置为 []，
+      // 所以传给后端的也是 []，后端会重新开始随机。
       const res = await fetch('/api/flower/random', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -27,19 +30,33 @@ export default function HomePage() {
 
       if (data.finished) {
         setFinishedData(data.message);
+        setLoading(false); // 修复：即使是完结状态，也要停止 loading
       } else {
+        // 预加载图片
         const img = new Image();
-        img.src = data.data.imageUrl;
+        
+        // 定义加载成功处理
         img.onload = () => {
             setCurrentFlower(data.data);
             setSeenIds(prev => [...prev, data.data.id]);
             setLoading(false);
             if (viewState === 'intro') setViewState('card');
         };
+
+        // 修复：定义加载失败处理 (防止卡死)
+        img.onerror = () => {
+            console.error("图片加载失败:", data.data.imageUrl);
+            setLoading(false);
+            alert("图片加载失败，请检查网络或图片链接");
+        };
+
+        // 开始加载
+        img.src = data.data.imageUrl;
       }
     } catch (error) {
       console.error(error);
       setLoading(false);
+      alert("网络请求失败，请重试");
     }
   };
 
@@ -47,13 +64,20 @@ export default function HomePage() {
     fetchFlower();
   };
 
+  // 处理完结界面
   if (finishedData) {
     return (
       <div className="h-screen w-full bg-stone-900 flex flex-col items-center justify-center p-8 text-center text-white">
         <Sparkles className="text-yellow-400 w-12 h-12 mb-6 animate-pulse" />
         <h1 className="text-2xl font-serif mb-8">{finishedData}</h1>
         <button 
-          onClick={() => { setSeenIds([]); setFinishedData(null); setViewState('intro'); }}
+          onClick={() => { 
+            // 核心修复：点击重新开始时，重置所有状态
+            setSeenIds([]); 
+            setFinishedData(null); 
+            setViewState('intro'); 
+            // 可以在这里可选地立即调用一次 fetchFlower()，或者让用户再次点击“开始旅程”
+          }}
           className="text-stone-400 text-sm underline hover:text-white transition"
         >
           重新开始
@@ -121,20 +145,13 @@ export default function HomePage() {
       {/* === 底部网站信息 (Footer) === */}
       <footer className="absolute bottom-6 w-full flex justify-center items-center text-xs text-stone-400 z-0 pointer-events-none">
         <div className="flex items-center gap-4 bg-white/50 backdrop-blur-sm px-4 py-2 rounded-full border border-stone-200/50 shadow-sm pointer-events-auto transition-opacity hover:opacity-100 opacity-60">
-            {/* 网站名 */}
             <span className="font-serif font-medium text-stone-500">{siteName}</span>
-            
             <span className="w-px h-3 bg-stone-300"></span>
-            
-            {/* 版本号 */}
             <span className="flex items-center gap-1 font-mono">
                 <Package size={10} />
                 {version}
             </span>
-
             <span className="w-px h-3 bg-stone-300"></span>
-
-            {/* GitHub 链接 */}
             <a 
                 href={repoUrl} 
                 target="_blank" 
@@ -150,4 +167,4 @@ export default function HomePage() {
 
     </div>
   );
-} 
+}
