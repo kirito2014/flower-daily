@@ -24,3 +24,192 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* app/globals.css */
+
+:root {
+  --card-width: 480px;
+  --card-height: 360px;
+  --card-bg: #fff;
+  --card-shadow: rgba(0, 0, 0, 0.2);
+  --card-hover-shadow: rgba(0, 0, 0, 0.4);
+  --text-color: #333;
+}
+
+.card-container-perspective {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  perspective: 1500px;
+}
+
+/* 1. 卡片容器 */
+.card-reference {
+  position: relative;
+  width: var(--card-width);
+  height: var(--card-height);
+  max-width: 90vw;
+  max-height: calc(90vw * 0.75);
+  cursor: pointer;
+  z-index: 10;
+}
+
+/* 2. 内部 3D 容器 */
+.card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.card-reference.flipped .card-inner {
+  transform: rotateY(180deg);
+}
+
+/* 3. 正反面公共样式 */
+.card-front, .card-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  background-color: var(--card-bg);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: var(--card-shadow) 0 10px 30px 0;
+  transform-style: preserve-3d;
+}
+
+/* === 新增需求：内边框 (10px padding) === */
+.card-front::after,
+.card-back::after {
+  content: '';
+  position: absolute;
+  /* 距离边缘 10px */
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  /* 细白色边框，半透明 */
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 12px; /* 圆角要比外层小一点 */
+  pointer-events: none; /* 让鼠标穿透，不影响点击 */
+  z-index: 50; /* 在图片之上，但由于 pointer-events: none 不会阻挡交互 */
+  
+  /* 给内边框加一点点投影，增加立体感 */
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.05);
+}
+
+/* 背面内边框颜色稍微深一点，因为背面背景是白的 */
+.card-back::after {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.card-back {
+  transform: rotateY(180deg);
+  background: #fff;
+}
+
+/* === 核心移植：图片处理 (出血位方案) === */
+.card-bg-img {
+    opacity: 1;
+    position: absolute;
+    /* 严格还原：拉大 padding 避免露底 */
+    top: -30px;
+    left: -30px;
+    width: calc(100% + 60px);
+    height: calc(100% + 60px);
+    padding: 30px;
+    
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    
+    pointer-events: none;
+    transform-style: preserve-3d;
+    will-change: transform;
+    transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* === 新增需求：磨砂玻璃切角 === */
+.card-flip-hint {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 70px;
+  height: 70px;
+  z-index: 60;
+  pointer-events: none;
+
+  /* 核心 1: 磨砂玻璃背景 */
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+
+  /* 核心 2: 裁剪成三角形 (左下 -> 右上 -> 右下) */
+  clip-path: polygon(0 100%, 100% 0, 100% 100%);
+
+  /* 核心 3: 边框高光 (模拟玻璃边缘) */
+  /* 由于 clip-path 会裁剪掉 box-shadow，我们用 inset shadow 模拟 */
+  box-shadow: inset -2px -2px 5px rgba(255, 255, 255, 0.4);
+  
+  /* 过渡效果 */
+  transition: background 0.3s ease;
+}
+
+/* 悬停时稍微变亮 */
+.card-reference:hover .card-flip-hint {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.card-flip-icon {
+  position: absolute;
+  /* 精确控制图标在三角形内的位置 */
+  bottom: 10px;
+  right: 10px;
+  color: #fff;
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3)); /* 确保在亮色背景也能看见 */
+  opacity: 0.9;
+  animation: pulse-hint 3s infinite ease-in-out;
+}
+
+@keyframes pulse-hint {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.1); opacity: 1; }
+}
+
+/* === 内容布局 === */
+.front-content {
+    position: absolute;
+    bottom: 24px;
+    left: 24px;
+    z-index: 10;
+    pointer-events: none;
+    text-align: left;
+}
+
+.back-content {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    /* 背面也是磨砂玻璃，但更不透明 */
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 32px;
+}
+
+.petal-particle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 10px;
+    height: 10px;
+    background: linear-gradient(135deg, #ff9a9e, #fad0c4);
+    border-radius: 50% 0 50% 50%;
+    pointer-events: none;
+    z-index: -1;
+    opacity: 0;
+}

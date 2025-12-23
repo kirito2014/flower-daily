@@ -1,0 +1,26 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 下面是你的 model Flower ...
+model Flower {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  imageUrl  String
+  language  String
+  habit     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AppConfig {
+  id        String   @id @default("global_config")
+  baseUrl   String   @default("https://api.openai.com/v1")
+  apiKey    String?
+  modelName String   @default("gpt-3.5-turbo")
+}
