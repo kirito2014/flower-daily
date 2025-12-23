@@ -24,3 +24,33 @@ model AppConfig {
   apiKey    String?
   modelName String   @default("gpt-3.5-turbo")
 }
+
+// === 用户模型 (更新) ===
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  password     String
+  isFirstLogin Boolean  @default(true)
+  
+  // 新增字段
+  lastLogin    DateTime? // 最后登录时间
+  isActive     Boolean   @default(true) // 是否启用
+  roleId       String?   // 角色ID
+  role         Role?     @relation(fields: [roleId], references: [id])
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// === 新增：角色模型 ===
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique // 角色名称 (如：管理员)
+  code        String   @unique // 角色代号 (如：admin)
+  description String?
+  permissions String   // 存储菜单权限列表的 JSON 字符串，例如 '["flowers", "users"]'
+  users       User[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
