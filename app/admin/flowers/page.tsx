@@ -16,8 +16,10 @@ export default function AdminFlowersPage() {
   const [filterText, setFilterText] = useState('');
   const [sortKey, setSortKey] = useState('created_desc');
 
+  // === 加载数据 (暴露给子组件调用) ===
   const loadFlowers = async () => {
     try {
+      // 只有在没有数据时才显示全屏 Loading，避免修改刷新时闪烁
       if (flowers.length === 0) setLoading(true);
       const data = await getFlowers();
       setFlowers(data);
@@ -45,12 +47,11 @@ export default function AdminFlowersPage() {
   const processedFlowers = useMemo(() => {
     let res = [...flowers];
 
-    // 1. 搜索：支持中文名 OR 英文名
+    // 1. 搜索
     if (searchText.trim()) {
       const lowerSearch = searchText.toLowerCase();
       res = res.filter(f => 
         f.name.toLowerCase().includes(lowerSearch) || 
-        // 兼容旧数据 englishName 可能为 null 的情况 (虽然 schema 设了 default)
         (f.englishName || '').toLowerCase().includes(lowerSearch)
       );
     }
@@ -90,6 +91,7 @@ export default function AdminFlowersPage() {
           <span className="w-1.5 h-4 bg-stone-800 rounded-full"></span>
           新花卉录入
         </h3>
+        {/* 录入成功后也刷新列表 */}
         <FlowerForm onSuccess={loadFlowers} />
       </div>
 
@@ -143,12 +145,15 @@ export default function AdminFlowersPage() {
           <p className="text-sm">正在加载花圃...</p>
         </div>
       ) : processedFlowers.length > 0 ? (
+        // 强制 4 列布局以配合卡片的索引计算逻辑
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {processedFlowers.map((flower) => (
+          {processedFlowers.map((flower, index) => (
             <AdminFlowerCard 
               key={flower.id} 
+              index={index}
               flower={flower} 
               onDelete={handleDelete}
+              onUpdate={loadFlowers} // 传递刷新函数
               isEditing={editingId === flower.id}
               onToggleEdit={() => setEditingId(current => current === flower.id ? null : flower.id)}
               onCloseEdit={() => setEditingId(null)}

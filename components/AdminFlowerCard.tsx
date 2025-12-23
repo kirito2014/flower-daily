@@ -8,7 +8,9 @@ import { toPng } from 'html-to-image';
 
 interface AdminFlowerCardProps {
   flower: Flower;
+  index: number;
   onDelete: (id: string) => void;
+  onUpdate: () => void; // 新增：数据更新回调
   isEditing: boolean;
   onToggleEdit: () => void;
   onCloseEdit: () => void;
@@ -16,7 +18,9 @@ interface AdminFlowerCardProps {
 
 export default function AdminFlowerCard({ 
   flower, 
+  index,
   onDelete, 
+  onUpdate,
   isEditing, 
   onToggleEdit, 
   onCloseEdit 
@@ -24,6 +28,12 @@ export default function AdminFlowerCard({
   const cardRef = useRef<HTMLDivElement>(null);
   const editFormRef = useRef<HTMLDivElement>(null);
   const [isSharing, setIsSharing] = useState(false);
+
+  // === 核心逻辑：计算弹出方向 ===
+  // 第 1,2 列 (0,1) -> 属于左半区 -> 向右弹出
+  // 第 3,4 列 (2,3) -> 属于右半区 -> 向左弹出
+  const colIndex = index % 4;
+  const isLeftHalf = colIndex < 2; 
 
   useEffect(() => {
     if (isEditing && editFormRef.current) {
@@ -50,13 +60,20 @@ export default function AdminFlowerCard({
     }
   };
 
+  // 修改成功后的处理：关闭编辑框 + 刷新列表
+  const handleSuccess = () => {
+    onCloseEdit();
+    onUpdate();
+  };
+
   return (
     <div 
       ref={cardRef}
       className={`
         group relative bg-white rounded-2xl shadow-sm border border-stone-200 
-        transition-all duration-300 overflow-hidden
-        ${isEditing ? 'card-editing-active scale-[1.02]' : 'hover:shadow-md z-0'}
+        transition-all duration-300
+        /* 编辑状态下 z-index 设为 50，确保弹出的面板在其他卡片之上 */
+        ${isEditing ? 'card-editing-active z-50' : 'hover:shadow-md z-0'}
         ${isSharing ? 'pointer-events-none' : ''}
       `}
     >
@@ -106,24 +123,17 @@ export default function AdminFlowerCard({
         )}
       </div>
 
-      {/* === 信息区域 (布局调整) === */}
+      {/* 信息区域 */}
       <div className="p-4 rounded-b-2xl bg-white relative z-10 flex items-center gap-4">
-        
-        {/* 左侧：中文名 + 英文名 */}
         <div className="flex flex-col shrink-0 ml-2">
           <h3 className="font-serif font-bold text-stone-800 text-xl">
             {flower.name}
           </h3>
-          {/* 英文名：斜体宋体 */}
           <p className="font-serif italic text-sm text-stone-400 mt-0.5">
             {flower.englishName}
           </p>
         </div>
-
-        {/* 分隔线 */}
         <div className="w-px h-8 bg-stone-200 shrink-0"></div>
-        
-        {/* 右侧：信息 */}
         <div className="flex flex-col items-start gap-1 overflow-hidden min-w-0">
           <p className="text-stone-500 text-xs font-mono opacity-80 text-left line-clamp-1 w-full" title={flower.language}>
             {flower.language}
@@ -132,18 +142,40 @@ export default function AdminFlowerCard({
              {flower.habit}
           </span>
         </div>
-
       </div>
 
-      {/* 编辑表单 */}
+      {/* === 编辑表单区域 (双倍宽度侧边弹出) === */}
       {isEditing && (
-        <div ref={editFormRef} className="absolute top-[calc(100%+12px)] left-0 w-full bg-white rounded-xl shadow-xl border border-stone-200/80 p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-300">
-          <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white border-t border-l border-stone-200 transform rotate-45"></div>
-          <div className="flex justify-between items-center mb-4 border-b border-stone-100 pb-2">
-             <h4 className="text-xs font-bold text-blue-600 flex items-center gap-1"><Pencil size={12} /> 正在修改</h4>
-             <button onClick={onCloseEdit} className="text-stone-400 hover:text-stone-600 p-1 rounded-full hover:bg-stone-100"><X size={14} /></button>
+        <div 
+          ref={editFormRef}
+          // 动态样式：
+          // 1. 宽度 = 200% (覆盖两列) + 1.5rem (覆盖中间的 gap)
+          // 2. 方向：如果在左半区(1/2列)，则 left: 100%+gap (向右弹)；否则 right: 100%+gap (向左弹)
+          className={`
+            absolute top-0 h-full bg-white rounded-2xl shadow-2xl border border-stone-200 p-6 animate-in fade-in zoom-in-95 duration-200
+            w-[calc(200%+2.0rem)]
+            ${isLeftHalf ? 'left-[calc(100%+1.5rem)]' : 'right-[calc(100%+1.5rem)]'}
+          `}
+          // 确保 z-index 高于周围
+          style={{ zIndex: 100 }}
+        >
+          {/* 关闭按钮 */}
+          <button 
+             onClick={onCloseEdit} 
+             className="absolute top-4 right-4 text-stone-400 hover:text-stone-600 p-1.5 rounded-full hover:bg-stone-100 transition"
+          >
+             <X size={18} />
+          </button>
+
+          <div className="mb-6 flex items-center gap-2 text-blue-600 font-bold border-b border-stone-100 pb-3">
+             <Pencil size={16} />
+             <span>修改信息</span>
           </div>
-          <FlowerForm flower={flower} onSuccess={onCloseEdit} />
+
+          {/* 表单容器：设置高度和滚动，防止内容溢出 */}
+          <div className="h-[calc(100%-60px)] overflow-y-auto pr-1">
+             <FlowerForm flower={flower} onSuccess={handleSuccess} />
+          </div>
         </div>
       )}
     </div>
