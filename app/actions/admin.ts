@@ -98,8 +98,9 @@ export async function generateFlowerContent(flowerName: string) {
 
   const openai = new OpenAI({ baseURL: config.baseUrl, apiKey: config.apiKey });
   const prompt = `请根据花名"${flowerName}"生成以下 JSON 数据：
-    1. language: 提炼一句唯美、治愈的花语（15字以内）。
-    2. habit: 简短的生长习性（例如：喜阳、耐旱）。
+    1. englishName: 对应的英文名称（例如：Red Peony）。
+    2. language: 提炼一句唯美、治愈的花语（15字以内）。
+    3. habit: 简短的生长习性（例如：喜阳、耐旱）。
     只返回纯 JSON。`;
 
   const completion = await openai.chat.completions.create({
@@ -117,12 +118,13 @@ export async function getFlowers() {
 }
 export async function createFlower(formData: FormData) {
     const name = formData.get('name') as string;
+    const englishName = formData.get('englishName') as string; // 新增
     const imageUrl = formData.get('imageUrl') as string;
     const language = formData.get('language') as string;
     const habit = formData.get('habit') as string;
   
     await prisma.flower.create({
-      data: { name, imageUrl, language, habit },
+      data: { name, englishName, imageUrl, language, habit },
     });
   
     revalidatePath('/admin/flowers'); 
@@ -136,13 +138,14 @@ export async function deleteFlower(id: string) {
 // 新增：更新花卉信息
 export async function updateFlower(id: string, formData: FormData) {
   const name = formData.get('name') as string;
+  const englishName = formData.get('englishName') as string; // 新增
   const imageUrl = formData.get('imageUrl') as string;
   const language = formData.get('language') as string;
   const habit = formData.get('habit') as string;
 
   await prisma.flower.update({
     where: { id },
-    data: { name, imageUrl, language, habit },
+    data: { name, englishName, imageUrl, language, habit },
   });
 
   // 刷新页面数据

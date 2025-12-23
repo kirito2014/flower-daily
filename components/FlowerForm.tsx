@@ -17,13 +17,10 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
   
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
-  
   const [previewUrl, setPreviewUrl] = useState(flower?.imageUrl || '');
 
   useEffect(() => {
-    if (flower?.imageUrl) {
-      setPreviewUrl(flower.imageUrl);
-    }
+    if (flower?.imageUrl) setPreviewUrl(flower.imageUrl);
   }, [flower]);
 
   const handleSubmit = async (formData: FormData) => {
@@ -60,9 +57,13 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
     setAiLoading(true);
     try {
       const data = await generateFlowerContent(name);
+      
+      // 自动填充字段
+      const engInput = form.elements.namedItem('englishName') as HTMLInputElement;
       const langInput = form.elements.namedItem('language') as HTMLInputElement;
       const habitInput = form.elements.namedItem('habit') as HTMLInputElement;
 
+      if (engInput && data.englishName) engInput.value = data.englishName;
       if (langInput) langInput.value = data.language || '';
       if (habitInput) habitInput.value = data.habit || '';
 
@@ -77,11 +78,8 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
   const handlePreviewImage = () => {
     if (imageUrlRef.current) {
       const url = imageUrlRef.current.value;
-      if (url) {
-        setPreviewUrl(url);
-      } else {
-        alert("请先输入图片链接");
-      }
+      if (url) setPreviewUrl(url);
+      else alert("请先输入图片链接");
     }
   };
 
@@ -91,16 +89,12 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
       if (input) {
         input.value = '';
         input.focus();
-        if (name === 'imageUrl') {
-          setPreviewUrl('');
-        }
+        if (name === 'imageUrl') setPreviewUrl('');
       }
     }
   };
 
-  const handleUploadClick = () => {
-    fileInputRef.current?.click();
-  };
+  const handleUploadClick = () => fileInputRef.current?.click();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -111,11 +105,6 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
       return;
     }
     
-    if (file.size > 2 * 1024 * 1024) {
-      alert('图片过大，建议使用 2MB 以内的图片');
-      return;
-    }
-
     const reader = new FileReader();
     reader.onload = (event) => {
       const base64 = event.target?.result as string;
@@ -125,7 +114,6 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
       }
     };
     reader.readAsDataURL(file);
-    
     e.target.value = '';
   };
 
@@ -179,6 +167,7 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
             <label className="text-sm font-medium text-stone-600 block">效果预览</label>
             <div className="w-full aspect-[4/3] bg-stone-100 border-2 border-dashed border-stone-300 rounded-xl overflow-hidden flex items-center justify-center relative group">
               {previewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img 
                   src={previewUrl} 
                   alt="Preview" 
@@ -199,28 +188,52 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
 
         </div>
 
-        {/* === 右列：花语 + 链接 + 习性 === */}
+        {/* === 右列：英文名/花语 + 链接 + 习性 === */}
         <div className="space-y-5">
           
-          {/* 1. 花语 */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-stone-600 block">花语</label>
-            <div className="relative group">
-              <input 
-                name="language" 
-                required 
-                defaultValue={flower?.language} 
-                className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-stone-400 transition pr-8"
-                placeholder="例如：雍容华贵" 
-              />
-              <button 
-                type="button" 
-                onClick={() => handleClear('language')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                title="清空"
-              >
-                <X size={14} />
-              </button>
+          {/* 1. 组合行：英文名 + 花语 (各占 50%) */}
+          <div className="grid grid-cols-2 gap-4">
+            
+            {/* 英文名 (新增) */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-stone-600 block">英文名</label>
+              <div className="relative group">
+                <input 
+                  name="englishName" 
+                  // 英文名非必填
+                  defaultValue={flower?.englishName} 
+                  className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-stone-400 transition pr-8 font-serif italic"
+                  placeholder="Peony" 
+                />
+                <button 
+                  type="button" 
+                  onClick={() => handleClear('englishName')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+
+            {/* 花语 */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-stone-600 block">花语</label>
+              <div className="relative group">
+                <input 
+                  name="language" 
+                  required 
+                  defaultValue={flower?.language} 
+                  className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-stone-400 transition pr-8"
+                  placeholder="雍容华贵" 
+                />
+                <button 
+                  type="button" 
+                  onClick={() => handleClear('language')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                >
+                  <X size={14} />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -228,8 +241,6 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
           <div className="space-y-2">
             <label className="text-sm font-medium text-stone-600 block">图片链接</label>
             <div className="flex gap-2 items-center">
-              
-              {/* 输入框 */}
               <div className="relative flex-1 group">
                 <input 
                   name="imageUrl" 
@@ -243,13 +254,11 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
                   type="button" 
                   onClick={() => handleClear('imageUrl')}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                  title="清空"
                 >
                   <X size={14} />
                 </button>
               </div>
 
-              {/* 本地上传按钮 */}
               <input 
                 type="file" 
                 ref={fileInputRef}
@@ -266,18 +275,14 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
                 <Plus size={18} />
               </button>
 
-              {/* === 修改：圆形预览按钮 (无文字) === */}
               <button
                 type="button"
                 onClick={handlePreviewImage}
-                // 修改了 class: w-9 h-9, rounded-full, items-center justify-center, 移除了 padding 和 text-xs font-medium
                 className="shrink-0 w-9 h-9 flex items-center justify-center rounded-full bg-stone-100 border border-stone-200 text-stone-600 hover:bg-stone-200 hover:scale-105 active:scale-95 transition shadow-sm"
-                title="预览图片链接" // 添加 title 方便提示
+                title="预览图片链接"
               >
-                {/* 调整了图标大小以匹配圆形容器 */}
                 <Eye size={18} /> 
               </button>
-              
             </div>
           </div>
 
@@ -296,7 +301,6 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
                 type="button" 
                 onClick={() => handleClear('habit')}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                title="清空"
               >
                 <X size={14} />
               </button>
