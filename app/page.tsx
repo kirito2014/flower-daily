@@ -3,8 +3,8 @@
 
 import { useState } from 'react';
 import { Flower } from '@prisma/client';
-import FlowerCard3D from '@/components/FlowerCard3D'; // 引入新组件
-import { Loader2, Sparkles } from 'lucide-react';
+import FlowerCard3D from '@/components/FlowerCard3D';
+import { Loader2, Sparkles, Github, ExternalLink, Package } from 'lucide-react'; // 引入图标
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function HomePage() {
@@ -28,7 +28,6 @@ export default function HomePage() {
       if (data.finished) {
         setFinishedData(data.message);
       } else {
-        // 为了让图片加载不闪烁，可以预加载图片
         const img = new Image();
         img.src = data.data.imageUrl;
         img.onload = () => {
@@ -44,12 +43,10 @@ export default function HomePage() {
     }
   };
 
-  // 处理“开始”点击
   const handleStart = () => {
     fetchFlower();
   };
 
-  // 处理完结界面
   if (finishedData) {
     return (
       <div className="h-screen w-full bg-stone-900 flex flex-col items-center justify-center p-8 text-center text-white">
@@ -64,6 +61,11 @@ export default function HomePage() {
       </div>
     );
   }
+
+  // 从环境变量读取配置
+  const siteName = process.env.NEXT_PUBLIC_SITE_NAME || 'Flower Daily';
+  const version = process.env.NEXT_PUBLIC_SITE_VERSION || 'v1.0.0';
+  const repoUrl = process.env.NEXT_PUBLIC_GITHUB_REPO || 'https://github.com';
 
   return (
     <div className="h-screen w-full bg-[#f5f5f5] flex items-center justify-center overflow-hidden relative">
@@ -84,7 +86,7 @@ export default function HomePage() {
             transition={{ duration: 0.8 }}
             className="text-center z-10"
           >
-            <h1 className="text-5xl font-serif font-bold text-stone-800 mb-4 tracking-tight">每日一花</h1>
+            <h1 className="text-5xl font-serif font-bold text-stone-800 mb-4 tracking-tight">{siteName}</h1>
             <p className="text-stone-500 mb-12 font-serif italic">送自己一份生活的仪式感</p>
             
             <button 
@@ -109,12 +111,43 @@ export default function HomePage() {
           >
             <FlowerCard3D 
               flower={currentFlower} 
-              onNext={fetchFlower} // 传入获取下一朵的函数
+              onNext={fetchFlower}
               loading={loading}
             />
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* === 底部网站信息 (Footer) === */}
+      <footer className="absolute bottom-6 w-full flex justify-center items-center text-xs text-stone-400 z-0 pointer-events-none">
+        <div className="flex items-center gap-4 bg-white/50 backdrop-blur-sm px-4 py-2 rounded-full border border-stone-200/50 shadow-sm pointer-events-auto transition-opacity hover:opacity-100 opacity-60">
+            {/* 网站名 */}
+            <span className="font-serif font-medium text-stone-500">{siteName}</span>
+            
+            <span className="w-px h-3 bg-stone-300"></span>
+            
+            {/* 版本号 */}
+            <span className="flex items-center gap-1 font-mono">
+                <Package size={10} />
+                {version}
+            </span>
+
+            <span className="w-px h-3 bg-stone-300"></span>
+
+            {/* GitHub 链接 */}
+            <a 
+                href={repoUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 hover:text-stone-800 transition-colors"
+            >
+                <Github size={10} />
+                <span>GitHub</span>
+                <ExternalLink size={8} className="opacity-50" />
+            </a>
+        </div>
+      </footer>
+
     </div>
   );
-}
+} 

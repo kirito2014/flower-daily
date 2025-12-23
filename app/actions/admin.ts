@@ -4,35 +4,58 @@
 import { prisma } from '@/lib/prisma';
 import OpenAI from 'openai';
 import { revalidatePath } from 'next/cache';
+import { encrypt, decrypt } from '@/lib/crypto'; // 引入加密工具
 
-// 1. 获取系统配置
+// 1. 获取系统配置 (读取时自动解密)
 export async function getSystemConfig() {
   const config = await prisma.appConfig.findUnique({
     where: { id: 'global_config' },
   });
+
+  // 如果有配置，解密 apiKey 再返回给前端或内部调用
+  if (config && config.apiKey) {
+    return {
+      ...config,
+      apiKey: decrypt(config.apiKey) // <--- 关键点：解密
+    };
+  }
+  
   return config;
 }
 
-// 2. 保存系统配置
+// 2. 保存系统配置 (保存时自动加密)
 export async function saveSystemConfig(formData: FormData) {
   const baseUrl = (formData.get('baseUrl') as string).trim();
   const apiKey = (formData.get('apiKey') as string).trim();
   const modelName = (formData.get('modelName') as string).trim();
 
+  // 基础校验
   if (/[^\x00-\x7F]/.test(apiKey)) {
     throw new Error('API Key 包含非法字符（中文或全角符号），请检查输入。');
   }
 
+  // <--- 关键点：加密后再存入数据库
+  const encryptedKey = encrypt(apiKey);
+
   await prisma.appConfig.upsert({
     where: { id: 'global_config' },
-    update: { baseUrl, apiKey, modelName },
-    create: { id: 'global_config', baseUrl, apiKey, modelName },
+    update: { 
+      baseUrl, 
+      apiKey: encryptedKey, // 存密文
+      modelName 
+    },
+    create: { 
+      id: 'global_config', 
+      baseUrl, 
+      apiKey: encryptedKey, // 存密文
+      modelName 
+    },
   });
 
   revalidatePath('/admin/settings');
 }
 
-// 3. 删除配置 (新增)
+// 3. 删除配置
 export async function deleteSystemConfig() {
   await prisma.appConfig.delete({
     where: { id: 'global_config' },
@@ -42,13 +65,15 @@ export async function deleteSystemConfig() {
 
 // 4. 测试 AI 连接
 export async function testAIConnection() {
+  // 这里调用 getSystemConfig()，它内部已经帮我们解密了，所以这里拿到的 config.apiKey 是明文
   const config = await getSystemConfig();
+  
   if (!config?.apiKey) return { success: false, message: '未找到已保存的配置，请先保存。' };
 
   try {
     const openai = new OpenAI({
       baseURL: config.baseUrl,
-      apiKey: config.apiKey,
+      apiKey: config.apiKey, // 这里使用的是解密后的 Key，可以直接用
     });
     
     await openai.chat.completions.create({
@@ -66,16 +91,13 @@ export async function testAIConnection() {
   }
 }
 
-// 5. AI 生成 (保持不变)
+// 5. AI 生成 (同理，直接使用解密后的 config)
 export async function generateFlowerContent(flowerName: string) {
   const config = await getSystemConfig();
   if (!config?.apiKey) throw new Error('AI 未配置');
 
   const openai = new OpenAI({ baseURL: config.baseUrl, apiKey: config.apiKey });
-  const prompt = `请根据花名"${flowerName}"生成以下 JSON 数据：
-    1. language: 提炼一句唯美、治愈的花语（15字以内）。
-    2. habit: 简短的生长习性（例如：喜阳、耐旱）。
-    只返回纯 JSON。`;
+  const prompt = `请根据花名"${flowerName}"生成JSON: { language: "唯美花语", habit: "习性" }`;
 
   const completion = await openai.chat.completions.create({
     messages: [{ role: "user", content: prompt }],
