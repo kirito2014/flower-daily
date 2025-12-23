@@ -1,8 +1,7 @@
-// app/page.tsx
 'use client';
 
-import { useState, useRef } from 'react'; // 引入 useRef
-import { useRouter } from 'next/navigation'; // 引入路由
+import { useState, useRef, useEffect } from 'react'; // 引入 useEffect
+import { useRouter } from 'next/navigation';
 import { Flower } from '@prisma/client';
 import FlowerCard3D from '@/components/FlowerCard3D';
 import { Loader2, Sparkles, Github, ExternalLink, Package } from 'lucide-react';
@@ -15,30 +14,22 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [finishedData, setFinishedData] = useState<string | null>(null);
   
-  // === 新增：彩蛋逻辑 ===
+  // === 彩蛋逻辑 ===
   const router = useRouter();
   const clickCountRef = useRef(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleEggClick = () => {
-    // 每次点击，计数器 +1
     clickCountRef.current += 1;
-
-    // 清除上一次的重置定时器，重新计时
     if (timerRef.current) clearTimeout(timerRef.current);
-    
-    // 如果 2秒内没有继续点击，重置计数器
     timerRef.current = setTimeout(() => {
         clickCountRef.current = 0;
     }, 2000);
-
-    // 如果连续点击达到 5 次
     if (clickCountRef.current >= 5) {
-        clickCountRef.current = 0; // 重置
-        router.push('/login'); // 跳转
+        clickCountRef.current = 0;
+        router.push('/login');
     }
   };
-  // ===================
 
   // 获取花朵数据
   const fetchFlower = async () => {
@@ -117,7 +108,6 @@ export default function HomePage() {
             transition={{ duration: 0.8 }}
             className="text-center z-10"
           >
-            {/* === 修改：给标题添加点击事件 === */}
             <h1 
                 onClick={handleEggClick}
                 className="text-5xl font-serif font-bold text-stone-800 mb-4 tracking-tight cursor-default select-none active:scale-95 transition-transform"
@@ -125,7 +115,6 @@ export default function HomePage() {
             >
                 {siteName}
             </h1>
-            {/* ============================== */}
 
             <p className="text-stone-500 mb-12 font-serif italic">送自己一份生活的仪式感</p>
             
@@ -148,6 +137,7 @@ export default function HomePage() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="z-10"
           >
+            {/* 这里的 props 与 FlowerCard3D 定义完全一致 */}
             <FlowerCard3D 
               flower={currentFlower} 
               onNext={fetchFlower}
