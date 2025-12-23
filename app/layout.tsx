@@ -28,7 +28,7 @@ export default function RootLayout({
     <html lang="zh-CN">
       <body className={`${inter.variable} ${notoSerif.variable} font-sans antialiased bg-stone-50`}>
         {/* 全局特效挂载点 */}
-        {/* <GlobalEffects /> */}
+        <GlobalEffects />
         {children}
       </body>
     </html>

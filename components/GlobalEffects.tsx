@@ -7,8 +7,8 @@ const PETAL_EMOJIS = ['🌸', '🌹', '🌺', '🌻', '🌼', '🍃', '🌷'];
 const CONFETTI_COLORS = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffa500'];
 
 // 性能优化配置
-const MAX_PARTICLES = 80; // ⚠️ 最大同时存在粒子数 (降低此值可大幅提升性能)
-const MOUSE_DIST_THRESHOLD = 50; // ⚠️ 鼠标移动多少像素才生成一个 (加大此值减少生成频率)
+const MAX_PARTICLES = 20; // ⚠️ 最大同时存在粒子数 (降低此值可大幅提升性能)
+const MOUSE_DIST_THRESHOLD = 150; // ⚠️ 鼠标移动多少像素才生成一个 (加大此值减少生成频率)
 
 interface Particle {
   x: number;
