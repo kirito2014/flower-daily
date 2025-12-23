@@ -125,3 +125,19 @@ export async function deleteFlower(id: string) {
     await prisma.flower.delete({ where: { id } });
     revalidatePath('/admin/flowers');
 }
+
+// 新增：更新花卉信息
+export async function updateFlower(id: string, formData: FormData) {
+  const name = formData.get('name') as string;
+  const imageUrl = formData.get('imageUrl') as string;
+  const language = formData.get('language') as string;
+  const habit = formData.get('habit') as string;
+
+  await prisma.flower.update({
+    where: { id },
+    data: { name, imageUrl, language, habit },
+  });
+
+  // 刷新页面数据
+  revalidatePath('/admin/flowers');
+}
