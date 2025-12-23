@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react'; // 引入 useEffect
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link'; // 保持 Link 组件
 import { Flower } from '@prisma/client';
 import FlowerCard3D from '@/components/FlowerCard3D';
 import { Loader2, Sparkles, Github, ExternalLink, Package } from 'lucide-react';
@@ -94,6 +95,7 @@ export default function HomePage() {
   return (
     <div className="h-screen w-full bg-[#f5f5f5] flex items-center justify-center overflow-hidden relative">
       
+      {/* 背景大字 */}
       <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none">
          <span className="text-[25vw] font-serif font-bold text-black">FLOWER</span>
       </div>
@@ -137,7 +139,6 @@ export default function HomePage() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="z-10"
           >
-            {/* 这里的 props 与 FlowerCard3D 定义完全一致 */}
             <FlowerCard3D 
               flower={currentFlower} 
               onNext={fetchFlower}
@@ -147,27 +148,37 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      <footer className="absolute bottom-6 w-full flex justify-center items-center text-xs text-stone-400 z-0 pointer-events-none">
-        <div className="flex items-center gap-4 bg-white/50 backdrop-blur-sm px-4 py-2 rounded-full border border-stone-200/50 shadow-sm pointer-events-auto transition-opacity hover:opacity-100 opacity-60">
-            <span className="font-serif font-medium text-stone-500">{siteName}</span>
-            <span className="w-px h-3 bg-stone-300"></span>
-            <span className="flex items-center gap-1 font-mono">
-                <Package size={10} />
-                {version}
-            </span>
-            <span className="w-px h-3 bg-stone-300"></span>
-            <a 
-                href={repoUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 hover:text-stone-800 transition-colors"
-            >
-                <Github size={10} />
-                <span>GitHub</span>
-                <ExternalLink size={8} className="opacity-50" />
-            </a>
-        </div>
-      </footer>
+      {/* === Footer: 仅在 viewState === 'card' 时显示 === */}
+      {viewState === 'card' && (
+        <footer className="absolute bottom-6 w-full flex justify-center items-center text-xs text-stone-400 z-0 pointer-events-none animate-in fade-in duration-1000">
+          <div className="flex items-center gap-4 bg-white/50 backdrop-blur-sm px-4 py-2 rounded-full border border-stone-200/50 shadow-sm pointer-events-auto transition-opacity hover:opacity-100 opacity-60">
+              {/* 保持 Link 功能 */}
+              <Link 
+                href="/login" 
+                className="font-serif font-medium text-stone-500 hover:text-stone-800 transition-colors cursor-pointer"
+              >
+                {siteName}
+              </Link>
+              
+              <span className="w-px h-3 bg-stone-300"></span>
+              <span className="flex items-center gap-1 font-mono">
+                  <Package size={10} />
+                  {version}
+              </span>
+              <span className="w-px h-3 bg-stone-300"></span>
+              <a 
+                  href={repoUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 hover:text-stone-800 transition-colors"
+              >
+                  <Github size={10} />
+                  <span>GitHub</span>
+                  <ExternalLink size={8} className="opacity-50" />
+              </a>
+          </div>
+        </footer>
+      )}
 
     </div>
   );
