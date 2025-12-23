@@ -110,7 +110,11 @@ export async function generateFlowerContent(flowerName: string) {
   return JSON.parse(completion.choices[0].message.content || '{}');
 }
 
-// 其他 CRUD 函数保持不变...
+export async function getFlowers() {
+  return await prisma.flower.findMany({
+    orderBy: { createdAt: 'desc' }, // 默认按创建时间倒序
+  });
+}
 export async function createFlower(formData: FormData) {
     const name = formData.get('name') as string;
     const imageUrl = formData.get('imageUrl') as string;
