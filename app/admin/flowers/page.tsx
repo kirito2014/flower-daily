@@ -13,7 +13,7 @@ import {
   SortAsc, 
   Calendar, 
   Clock, 
-  X // 引入 X 图标
+  X 
 } from 'lucide-react';
 
 export default function AdminFlowersPage() {
@@ -79,7 +79,8 @@ export default function AdminFlowersPage() {
         case 'created_desc': return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         case 'created_asc': return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
         case 'updated_desc': return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-        case 'name_asc': return a.name.localeCompare(b.name, 'zh-CN');
+        case 'name_asc': return a.name.localeCompare(b.name, 'zh-CN'); // A-Z
+        case 'name_desc': return b.name.localeCompare(a.name, 'zh-CN'); // Z-A (新增)
         default: return 0;
       }
     });
@@ -99,7 +100,6 @@ export default function AdminFlowersPage() {
           <span className="w-1.5 h-4 bg-stone-800 rounded-full"></span>
           新花卉录入
         </h3>
-        {/* 录入成功后刷新列表 */}
         <FlowerForm onSuccess={loadFlowers} />
       </div>
 
@@ -119,14 +119,12 @@ export default function AdminFlowersPage() {
               placeholder="搜索花名 (中/英)..."
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              // 修改：pr-4 -> pr-10 为清空按钮留出位置
               className="w-full pl-9 pr-10 py-2.5 bg-white border border-stone-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition shadow-sm"
             />
-            {/* 清空按钮：仅在有内容时显示 */}
             {searchText && (
               <button 
                 onClick={() => setSearchText('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-full p-1 transition"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-full p-1 transition"
                 title="清空搜索"
               >
                 <X size={14} />
@@ -142,14 +140,12 @@ export default function AdminFlowersPage() {
               placeholder="筛选花语或习性..."
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
-              // 修改：pr-4 -> pr-10
               className="w-full pl-9 pr-10 py-2.5 bg-white border border-stone-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-100 focus:border-purple-400 transition shadow-sm"
             />
-            {/* 清空按钮 */}
             {filterText && (
               <button 
                 onClick={() => setFilterText('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-full p-1 transition"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-full p-1 transition"
                 title="清空筛选"
               >
                 <X size={14} />
@@ -172,6 +168,7 @@ export default function AdminFlowersPage() {
             <option value="created_asc">按添加时间 (最早)</option>
             <option value="updated_desc">按修改时间 (最近)</option>
             <option value="name_asc">按名称排序 (A-Z)</option>
+            <option value="name_desc">按名称排序 (Z-A)</option> {/* 新增 */}
           </select>
           <ArrowUpDown className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" size={14} />
         </div>

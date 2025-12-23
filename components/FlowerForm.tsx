@@ -164,7 +164,7 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
 
           {/* 2. 图片预览窗 */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-stone-600 block">效果预览</label>
+            <label className="text-sm font-medium text-stone-600 block">图片预览</label>
             <div className="w-full aspect-[4/3] bg-stone-100 border-2 border-dashed border-stone-300 rounded-xl overflow-hidden flex items-center justify-center relative group">
               {previewUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
