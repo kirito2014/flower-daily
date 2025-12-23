@@ -161,7 +161,7 @@ export default function AdminFlowerCard({
           className={`
             absolute top-0 h-full bg-white rounded-2xl shadow-2xl border border-stone-200 p-6 
             animate-in fade-in zoom-in-95 duration-300 ease-in-out
-            w-[calc(200%+1.5rem)]
+            w-[calc(200%+2.0rem)]
             ${isLeftHalf ? 'left-[calc(100%+1.5rem)]' : 'right-[calc(100%+1.5rem)]'}
           `}
           style={{ zIndex: 100 }}
