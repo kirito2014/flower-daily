@@ -15,16 +15,19 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
   const [isFlipped, setIsFlipped] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   
-  // Refs 用于直接操作 DOM，绕过 React 渲染周期，实现高性能动画
-  const cardRef = useRef<HTMLDivElement>(null); // 外层引用 (用于动画)
-  const captureRef = useRef<HTMLDivElement>(null); // 截图引用 (包裹正反面)
+  // Refs
+  const cardRef = useRef<HTMLDivElement>(null);
   const cardInnerRef = useRef<HTMLDivElement>(null);
   const frontImgRef = useRef<HTMLDivElement>(null);
   const backImgRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  // 专门用于分享截图的 Ref
+  const shareHiddenRef = useRef<HTMLDivElement>(null);
+
   const rafRef = useRef<number>(0);
 
-  // === 1. 移植 script.js 的核心状态机与物理逻辑 (完整保留) ===
+  // === 1. 物理动画逻辑 (保持不变) ===
   useEffect(() => {
     const card = cardRef.current;
     const cardInner = cardInnerRef.current;
@@ -33,7 +36,6 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
 
     if (!card || !cardInner || !frontImg || !backImg) return;
 
-    // 状态定义 (来自 script.js)
     const AnimationState = {
         RANDOM_FLOAT: 'random_float',
         HOVER: 'hover',
@@ -42,10 +44,8 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
     };
 
     let currentState = AnimationState.RANDOM_FLOAT;
-    // 当前物理位置
     let currentPosition = { x: 0, y: 0, rotate: 0, rotateX: 0, rotateY: 0 };
     
-    // 生成随机位置 (Idle 动画)
     function generateRandomPosition() {
         return {
             x: (Math.random() - 0.5) * 10,
@@ -56,11 +56,10 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
         };
     }
 
-    // 核心：平滑过渡函数
     function smoothTransition(targetPos: any, duration = 2000) {
         const startPos = { ...currentPosition };
         const startTime = performance.now();
-        const baseRotation = isFlipped ? 180 : 0; // 考虑翻转状态
+        const baseRotation = isFlipped ? 180 : 0;
 
         function update(currentTime: number) {
             if (currentState !== AnimationState.RANDOM_FLOAT) return;
@@ -68,22 +67,18 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
             const elapsed = currentTime - startTime;
             const progress = Math.min(elapsed / duration, 1);
             
-            // 缓动函数
             const easeProgress = progress < .5 ? 
                 4 * progress * progress * progress : 
                 1 - Math.pow(-2 * progress + 2, 3) / 2;
 
-            // 插值计算
             const x = startPos.x + (targetPos.x - startPos.x) * easeProgress;
             const y = startPos.y + (targetPos.y - startPos.y) * easeProgress;
             const rotate = startPos.rotate + (targetPos.rotate - startPos.rotate) * easeProgress;
             const rotateX = startPos.rotateX + (targetPos.rotateX - startPos.rotateX) * easeProgress;
             const rotateY = startPos.rotateY + (targetPos.rotateY - startPos.rotateY) * easeProgress;
 
-            // 更新当前位置引用
             currentPosition = { x, y, rotate, rotateX, rotateY };
 
-            // 应用到 DOM
             if (cardInner) {
                 cardInner.style.transform = `
                     translate3d(${x}px, ${y}px, 0)
@@ -93,7 +88,6 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
                 `;
             }
 
-            // 同步更新图片视差
             const imgTransform = `
                 translate3d(${-x * 0.5}px, ${-y * 0.5}px, 0)
                 rotateX(${-rotateX * 0.5}deg)
@@ -118,34 +112,26 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
         smoothTransition(targetPos);
     }
 
-    // --- 事件监听 ---
-
-    // 1. Mouse Enter
     const handleMouseEnter = () => {
         if (currentState === AnimationState.FLIP) return;
         currentState = AnimationState.HOVER;
         cancelAnimationFrame(rafRef.current);
-        
         cardInner.style.transition = 'transform 0.2s ease-out';
         if (frontImg) frontImg.style.transition = 'transform 0.2s ease-out';
         if (backImg) backImg.style.transition = 'transform 0.2s ease-out';
     };
 
-    // 2. Mouse Move
     const handleMouseMove = (e: MouseEvent) => {
         if (currentState !== AnimationState.HOVER) return;
-
         const rect = card.getBoundingClientRect();
         const x = (e.clientX - rect.left - rect.width / 2) / rect.width;
         const y = (e.clientY - rect.top - rect.height / 2) / rect.height;
-
         const baseRotation = isFlipped ? 180 : 0;
 
         cardInner.style.transform = `
             rotateY(${baseRotation + x * 20}deg)
             rotateX(${-y * 20}deg)
         `;
-
         const imgTransform = `
             translate3d(${x * -30}px, ${y * -30}px, 0)
             scale(1.1)
@@ -154,11 +140,9 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
         if (backImg) backImg.style.transform = imgTransform;
     };
 
-    // 3. Mouse Leave
     const handleMouseLeave = () => {
         if (currentState === AnimationState.FLIP) return;
         currentState = AnimationState.TRANSITION;
-
         const resetImgTransform = 'translate3d(0, 0, 0) scale(1.0)';
         
         cardInner.style.transition = 'transform 0.6s cubic-bezier(0.23, 1, 0.32, 1)';
@@ -200,7 +184,7 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
   }, [isFlipped]); 
 
 
-  // === 2. 翻转与交互逻辑 ===
+  // === 2. 交互逻辑 ===
 
   const triggerPetalExplosion = useCallback(() => {
     const container = containerRef.current;
@@ -232,15 +216,14 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
     setTimeout(() => { onNext(); }, 600);
   };
 
-  // 修复分享功能
+  // 修复分享：复用 AdminFlowerCard 的样式
   const handleShareClick = async (e: React.MouseEvent) => {
-    e.stopPropagation(); // 阻止点击翻转
-    if (!captureRef.current || isSharing) return;
+    e.stopPropagation(); 
+    if (!shareHiddenRef.current || isSharing) return; // 注意：这里 capture 的是隐藏的 shareHiddenRef
     setIsSharing(true);
 
     try {
-      // 截图逻辑
-      const dataUrl = await toPng(captureRef.current, { cacheBust: true, pixelRatio: 2 });
+      const dataUrl = await toPng(shareHiddenRef.current, { cacheBust: true, pixelRatio: 2 });
       const link = document.createElement('a');
       link.download = `${flower.name}-daily.png`;
       link.href = dataUrl;
@@ -254,105 +237,146 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
   };
 
   return (
-  <div ref={containerRef} className="card-container-perspective">
-    {/* 增加 captureRef 用于截图，它包含正反面 */}
-    <div 
-      ref={(node) => {
-        // 合并 Refs
-        cardRef.current = node;
-        captureRef.current = node;
-      }}
-      className={`card-reference ${isFlipped ? 'flipped' : ''}`}
-      onClick={handleCardClick}
-    >
-      <div ref={cardInnerRef} className="card-inner">
-        
-        {/* === 正面 === */}
-        <div className="card-front">
-          <div 
-              ref={frontImgRef} 
-              className="card-bg-img" 
-              style={{ backgroundImage: `url(${flower.imageUrl})` }}
-          />
-          
-          <div className="front-content">
-              <h2 className="text-white font-serif text-4xl font-bold tracking-wider drop-shadow-[0_4px_8px_rgba(0,0,0,0.6)]">
-                  {flower.name}
-              </h2>
-              <div className="w-8 h-1 bg-white/90 rounded-full mt-3 shadow-sm"></div>
+    <>
+      {/* === 隐藏的分享卡片 (完全复刻 AdminFlowerCard 样式) === */}
+      {/* 移出屏幕外，固定宽度确保排版一致 */}
+      <div className="fixed left-[-9999px] top-0 z-[-1]" aria-hidden="true">
+        <div 
+          ref={shareHiddenRef}
+          className="w-[320px] bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden"
+        >
+          {/* 图片区 */}
+          <div className="aspect-[4/3] relative bg-stone-100">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img 
+              src={flower.imageUrl} 
+              className="w-full h-full object-cover"
+              crossOrigin="anonymous" 
+              alt={flower.name}
+            />
           </div>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none"></div>
-          
-          <div className="card-flip-hint">
-              <RotateCw size={18} className="card-flip-icon" />
+          {/* 信息区 (AdminCard 样式) */}
+          <div className="p-4 bg-white flex items-end gap-4">
+            {/* 左侧：花名 + 英文名 */}
+            <div className="flex flex-col shrink-0 ml-2">
+              <h3 className="font-serif font-bold text-stone-800 text-xl leading-none mb-1">
+                {flower.name}
+              </h3>
+              <p className="font-serif italic text-sm text-stone-400 leading-none">
+                {flower.englishName}
+              </p>
+            </div>
+            {/* 分隔线 */}
+            <div className="w-px h-8 bg-stone-200 shrink-0 self-center"></div>
+            {/* 右侧：花语 + 习性 */}
+            <div className="flex flex-col items-end gap-1 overflow-hidden min-w-0 flex-1">
+              <p className="text-stone-500 text-xs font-mono opacity-80 text-right line-clamp-1 w-full">
+                {flower.language}
+              </p>
+              <span className="px-2 py-0.5 bg-stone-100 text-stone-600 text-[10px] rounded-md whitespace-nowrap">
+                {flower.habit}
+              </span>
+            </div>
           </div>
-        </div>
-
-        {/* === 背面 === */}
-        <div className="card-back">
-          <div 
-              ref={backImgRef} 
-              className="card-bg-img"
-              style={{ backgroundImage: `url(${flower.imageUrl})` }}
-          />
-          
-          <div className="back-content">
-             <div className="flex-1 flex flex-col items-center justify-center space-y-6">
-                
-                {/* 核心修改：名字排版 */}
-                <div className="flex items-baseline justify-center gap-3 w-full border-b border-stone-100 pb-4 mb-2">
-                    {/* 中文名 3xl */}
-                    <h2 className="text-3xl font-serif font-bold text-stone-900">
-                        {flower.name}
-                    </h2>
-                    {/* 英文名 xs 斜体宋体 */}
-                    <span className="text-sm font-serif italic text-stone-400">
-                        {flower.englishName}
-                    </span>
-                </div>
-                
-                {/* 装饰条 */}
-                <div className="flex justify-center -mt-4">
-                     <div className="w-12 h-1 bg-stone-300 rounded-full"></div>
-                </div>
-
-                <div className="relative py-2 px-4">
-                    <Sparkles className="absolute -top-3 -left-3 w-5 h-5 text-stone-400" />
-                    <p className="text-stone-800 font-serif italic text-2xl leading-relaxed text-center drop-shadow-sm">
-                    “{flower.language}”
-                    </p>
-                    <Sparkles className="absolute -bottom-3 -right-3 w-5 h-5 text-stone-400" />
-                </div>
-                
-                <div className="bg-stone-100/80 text-stone-600 px-4 py-1.5 rounded-full text-sm font-medium border border-stone-200">
-                   {flower.habit}
-                </div>
-             </div>
-
-             <div className="w-full grid grid-cols-5 gap-3 pt-6 border-t border-stone-200/50">
-                <button 
-                  onClick={(e) => { e.stopPropagation(); handleNextClick(); }}
-                  disabled={loading}
-                  className="col-span-3 py-3 bg-stone-900 text-white rounded-xl hover:bg-stone-800 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg"
-                >
-                  {loading ? <Loader2 className="animate-spin w-4 h-4"/> : <RefreshCcw size={18} />}
-                  <span className="font-medium">再送自己一朵</span>
-                </button>
-
-                <button 
-                  onClick={handleShareClick}
-                  disabled={isSharing}
-                  className="col-span-2 py-3 bg-white/60 text-stone-800 border border-stone-300/50 rounded-xl hover:bg-white active:scale-95 transition-all flex items-center justify-center gap-2 shadow-sm"
-                >
-                  {isSharing ? <Loader2 className="animate-spin w-4 h-4"/> : <Share2 size={18} />}
-                  <span className="font-medium">分享</span>
-                </button>
-             </div>
+          {/* 底部水印 (可选优化) */}
+          <div className="bg-stone-50 px-4 py-2 text-[10px] text-stone-300 text-center font-mono tracking-widest uppercase">
+              Flower Daily
           </div>
         </div>
-
       </div>
-    </div>
-  </div>
-);
+
+      {/* === 可见的 3D 卡片 === */}
+      <div ref={containerRef} className="card-container-perspective">
+        <div 
+          ref={cardRef}
+          className={`card-reference ${isFlipped ? 'flipped' : ''}`}
+          onClick={handleCardClick}
+        >
+          <div ref={cardInnerRef} className="card-inner">
+            
+            {/* 正面 */}
+            <div className="card-front">
+              <div 
+                  ref={frontImgRef} 
+                  className="card-bg-img" 
+                  style={{ backgroundImage: `url(${flower.imageUrl})` }}
+              />
+              
+              <div className="front-content">
+                  <h2 className="text-white font-serif text-4xl font-bold tracking-wider drop-shadow-[0_4px_8px_rgba(0,0,0,0.6)]">
+                      {flower.name}
+                  </h2>
+                  <div className="w-8 h-1 bg-white/90 rounded-full mt-3 shadow-sm"></div>
+              </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none"></div>
+              <div className="card-flip-hint">
+                  <RotateCw size={18} className="card-flip-icon" />
+              </div>
+            </div>
+
+            {/* 背面 */}
+            <div className="card-back">
+              <div 
+                  ref={backImgRef} 
+                  className="card-bg-img"
+                  style={{ backgroundImage: `url(${flower.imageUrl})` }}
+              />
+              
+              <div className="back-content">
+                 <div className="flex-1 flex flex-col items-center justify-center space-y-6">
+                    
+                    {/* 名字排版：同行，底部对齐，居中 */}
+                    <div className="flex items-baseline justify-center gap-3 w-full border-b border-stone-100 pb-4 mb-2">
+                        <h2 className="text-3xl font-serif font-bold text-stone-900">
+                            {flower.name}
+                        </h2>
+                        <span className="text-sm font-serif italic text-stone-400">
+                            {flower.englishName}
+                        </span>
+                    </div>
+                    
+                    <div className="flex justify-center -mt-4">
+                         <div className="w-12 h-1 bg-stone-300 rounded-full"></div>
+                    </div>
+
+                    <div className="relative py-2 px-4">
+                        <Sparkles className="absolute -top-3 -left-3 w-5 h-5 text-stone-400" />
+                        <p className="text-stone-800 font-serif italic text-2xl leading-relaxed text-center drop-shadow-sm">
+                        “{flower.language}”
+                        </p>
+                        <Sparkles className="absolute -bottom-3 -right-3 w-5 h-5 text-stone-400" />
+                    </div>
+                    
+                    <div className="bg-stone-100/80 text-stone-600 px-4 py-1.5 rounded-full text-sm font-medium border border-stone-200">
+                       {flower.habit}
+                    </div>
+                 </div>
+
+                 <div className="w-full grid grid-cols-5 gap-3 pt-6 border-t border-stone-200/50">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleNextClick(); }}
+                      disabled={loading}
+                      className="col-span-3 py-3 bg-stone-900 text-white rounded-xl hover:bg-stone-800 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg"
+                    >
+                      {loading ? <Loader2 className="animate-spin w-4 h-4"/> : <RefreshCcw size={18} />}
+                      <span className="font-medium">再送自己一朵</span>
+                    </button>
+
+                    <button 
+                      onClick={handleShareClick}
+                      disabled={isSharing}
+                      className="col-span-2 py-3 bg-white/60 text-stone-800 border border-stone-300/50 rounded-xl hover:bg-white active:scale-95 transition-all flex items-center justify-center gap-2 shadow-sm"
+                    >
+                      {isSharing ? <Loader2 className="animate-spin w-4 h-4"/> : <Share2 size={18} />}
+                      <span className="font-medium">分享</span>
+                    </button>
+                 </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </>
+  );
 }
