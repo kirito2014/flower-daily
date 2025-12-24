@@ -159,7 +159,7 @@ export default function AdminFlowerCard({
         <div 
           ref={editFormRef}
           className={`
-            absolute top-0 h-full bg-white rounded-2xl shadow-2xl border border-stone-200 p-6 
+            absolute top-0 h-[calc(175%+2rem)] bg-white rounded-2xl shadow-2xl border border-stone-200 p-6 
             animate-in fade-in zoom-in-95 duration-300 ease-in-out
             w-[calc(200%+2.0rem)]
             ${isLeftHalf ? 'left-[calc(100%+1.5rem)]' : 'right-[calc(100%+1.5rem)]'}
