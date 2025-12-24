@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { getFlowers, deleteFlower } from '@/app/actions/admin';
 import FlowerForm from '@/components/FlowerForm';
 import AdminFlowerCard from '@/components/AdminFlowerCard';
-import AdminFlowerListItem from '@/components/AdminFlowerListItem'; // 引入新组件
+import AdminFlowerListItem from '@/components/AdminFlowerListItem';
 import { Flower } from '@prisma/client';
 import { 
   Search, 
@@ -15,8 +15,8 @@ import {
   Calendar, 
   Clock, 
   X,
-  LayoutGrid, // 四方格图标
-  StretchHorizontal // 两长条图标
+  LayoutGrid, 
+  StretchHorizontal 
 } from 'lucide-react';
 
 export default function AdminFlowersPage() {
@@ -24,7 +24,7 @@ export default function AdminFlowersPage() {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // === 新增：视图模式状态 ===
+  // 视图模式状态
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const [searchText, setSearchText] = useState('');
@@ -117,7 +117,6 @@ export default function AdminFlowersPage() {
         {/* 左侧：搜索与筛选 */}
         <div className="flex flex-1 gap-3 flex-col sm:flex-row">
           
-          {/* 1. 搜索输入框 */}
           <div className="relative group flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 group-focus-within:text-blue-500 transition-colors" size={16} />
             <input 
@@ -138,7 +137,6 @@ export default function AdminFlowersPage() {
             )}
           </div>
 
-          {/* 2. 筛选输入框 */}
           <div className="relative group flex-1">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 group-focus-within:text-purple-500 transition-colors" size={16} />
             <input 
@@ -163,7 +161,6 @@ export default function AdminFlowersPage() {
         {/* 右侧：排序与视图切换 */}
         <div className="flex items-center gap-3">
             
-            {/* 1. 排序下拉 */}
             <div className="relative min-w-[180px]">
               <div className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 pointer-events-none">
                 {sortKey.includes('name') ? <SortAsc size={16}/> : (sortKey.includes('updated') ? <Clock size={16}/> : <Calendar size={16}/>)}
@@ -182,19 +179,27 @@ export default function AdminFlowersPage() {
               <ArrowUpDown className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" size={14} />
             </div>
 
-            {/* 2. 视图切换按钮 (圆角矩形，悬浮动画) */}
+            {/* 2. 视图切换按钮 (双向动画修复) */}
             <button
               onClick={() => setViewMode(prev => prev === 'grid' ? 'list' : 'grid')}
-              className="group relative w-10 h-10 flex items-center justify-center bg-white border border-stone-200 rounded-xl shadow-sm hover:border-blue-300 hover:shadow-md hover:bg-blue-50 transition-all active:scale-95"
+              className="group relative w-10 h-10 flex items-center justify-center bg-white border border-stone-200 rounded-xl shadow-sm hover:border-blue-300 hover:shadow-md hover:bg-blue-50 transition-all active:scale-95 overflow-hidden"
               title={viewMode === 'grid' ? '切换到列表视图' : '切换到网格视图'}
             >
-              {/* 默认图标 (绝对定位) */}
-              <div className={`absolute transition-all duration-300 transform ${viewMode === 'grid' ? 'opacity-100 scale-100 group-hover:opacity-0 group-hover:scale-75' : 'opacity-0 scale-75'}`}>
+              {/* Grid 图标 (四方格) */}
+              <div className={`absolute transition-all duration-300 transform ${
+                  viewMode === 'grid' 
+                  ? 'opacity-100 scale-100 group-hover:opacity-0 group-hover:scale-75' // 当前 Grid：显示，悬浮隐藏
+                  : 'opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100' // 当前 List：隐藏，悬浮显示(提示切回Grid)
+              }`}>
                  <LayoutGrid size={18} className="text-stone-500" />
               </div>
 
-              {/* 悬浮/激活图标 (绝对定位) */}
-              <div className={`absolute transition-all duration-300 transform ${viewMode === 'list' ? 'opacity-100 scale-100' : 'opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100'}`}>
+              {/* List 图标 (两长条) */}
+              <div className={`absolute transition-all duration-300 transform ${
+                  viewMode === 'list' 
+                  ? 'opacity-100 scale-100 group-hover:opacity-0 group-hover:scale-75' // 当前 List：显示，悬浮隐藏
+                  : 'opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100' // 当前 Grid：隐藏，悬浮显示(提示切回List)
+              }`}>
                  <StretchHorizontal size={18} className="text-blue-500" />
               </div>
             </button>
@@ -208,8 +213,6 @@ export default function AdminFlowersPage() {
         </div>
       ) : processedFlowers.length > 0 ? (
         
-        // 根据 viewMode 切换 Grid 布局
-        // viewMode === 'list' 时，强制 grid-cols-1，让 AdminFlowerListItem 占满宽度
         <div className={`
             grid gap-6
             ${viewMode === 'grid' 

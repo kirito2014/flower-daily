@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState } from 'react';
 import { Flower } from '@prisma/client';
-import { Pencil, Trash2, X, Share2, Loader2, AlertCircle } from 'lucide-react';
+import { Pencil, Trash2, X, Share2, Loader2 } from 'lucide-react';
 import FlowerForm from '@/components/FlowerForm';
 import { toPng } from 'html-to-image';
 
@@ -29,11 +29,12 @@ export default function AdminFlowerCard({
   const editFormRef = useRef<HTMLDivElement>(null);
   const [isSharing, setIsSharing] = useState(false);
   
-  // === 新增状态 ===
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false); // 控制删除弹窗
-  const [isDeleting, setIsDeleting] = useState(false); // 控制删除离场动画
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // === 核心逻辑：计算弹出方向 ===
+  // 第 1,2 列 (0,1) -> 属于左半区 -> 向右弹出
+  // 第 3,4 列 (2,3) -> 属于右半区 -> 向左弹出
   const colIndex = index % 4;
   const isLeftHalf = colIndex < 2; 
 
@@ -67,12 +68,9 @@ export default function AdminFlowerCard({
     onUpdate();
   };
 
-  // === 处理确认删除 ===
   const handleConfirmDelete = () => {
-    setShowDeleteConfirm(false); // 关闭弹窗
-    setIsDeleting(true); // 1. 触发变灰消失动画
-
-    // 2. 等待动画(500ms)结束后，调用父组件删除逻辑
+    setShowDeleteConfirm(false);
+    setIsDeleting(true);
     setTimeout(() => {
       onDelete(flower.id);
     }, 500);
@@ -85,7 +83,6 @@ export default function AdminFlowerCard({
         className={`
           group relative bg-white rounded-2xl shadow-sm border border-stone-200 
           transition-all duration-500 ease-in-out
-          /* 核心修改：删除时的离场动画 (变灰、透明、缩小) */
           ${isDeleting ? 'grayscale opacity-0 scale-90 pointer-events-none' : 'opacity-100 scale-100'}
           ${isEditing ? 'card-editing-active z-50' : 'hover:shadow-md z-0'}
           ${isSharing ? 'pointer-events-none' : ''}
@@ -107,7 +104,6 @@ export default function AdminFlowerCard({
           {!isEditing && !isSharing && !isDeleting && (
             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20 pointer-events-none">
               <div className="relative flex items-center justify-center h-12 w-full pointer-events-auto group/btns">
-                
                 <button
                   onClick={onToggleEdit}
                   className="relative z-30 w-12 h-12 rounded-full bg-blue-500/40 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-lg hover:!bg-blue-500 hover:scale-110 hover:z-40 transition-all duration-300"
@@ -115,7 +111,6 @@ export default function AdminFlowerCard({
                 >
                   <Pencil size={20} />
                 </button>
-
                 <button
                   onClick={handleShare}
                   disabled={isSharing}
@@ -124,8 +119,6 @@ export default function AdminFlowerCard({
                 >
                   {isSharing ? <Loader2 className="animate-spin" size={20} /> : <Share2 size={20} />}
                 </button>
-
-                {/* 修改：点击删除不再直接 confirm，而是显示自定义弹窗 */}
                 <button
                   onClick={() => setShowDeleteConfirm(true)}
                   className="absolute inset-0 z-10 w-12 h-12 rounded-full mx-auto bg-red-500/40 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-lg opacity-0 scale-50 group-hover/btns:translate-x-16 group-hover/btns:opacity-100 group-hover/btns:scale-100 hover:!bg-red-500 hover:!scale-110 hover:z-40 transition-all duration-300"
@@ -164,13 +157,25 @@ export default function AdminFlowerCard({
           <div 
             ref={editFormRef}
             className={`
-              absolute top-0 h-[calc(175%+2rem)] bg-white rounded-2xl shadow-2xl border border-stone-200 p-6 
+              absolute top-0 h-[calc(178%+2rem)] bg-white rounded-2xl shadow-2xl border border-stone-200 p-6 
               animate-in fade-in zoom-in-95 duration-300 ease-in-out
               w-[calc(200%+2rem)]
               ${isLeftHalf ? 'left-[calc(100%+1.5rem)]' : 'right-[calc(100%+1.5rem)]'}
             `}
             style={{ zIndex: 100 }}
           >
+            {/* === 新增：侧边指示箭头 === 
+              根据 isLeftHalf 决定箭头位置（左或右），并垂直居中
+            */}
+            <div className={`
+                absolute top-1/2 w-4 h-4 bg-white border-stone-200 transform rotate-45 -translate-y-1/2
+                ${isLeftHalf 
+                  ? '-left-2 border-b border-l' // 向右弹，箭头在左侧，指向卡片
+                  : '-right-2 border-t border-r' // 向左弹，箭头在右侧，指向卡片
+                }
+            `}></div>
+
+            {/* 关闭按钮 */}
             <button 
                onClick={onCloseEdit} 
                className="absolute top-4 right-4 text-stone-400 hover:text-stone-600 p-1.5 rounded-full hover:bg-stone-100 transition"
@@ -190,35 +195,27 @@ export default function AdminFlowerCard({
         )}
       </div>
 
-      {/* === 自定义删除确认弹窗 (Portal / Fixed Overlay) === */}
+      {/* 删除确认弹窗 */}
       {showDeleteConfirm && (
         <div 
           className="fixed inset-0 z-[999] flex items-center justify-center bg-black/20 backdrop-blur-sm animate-in fade-in duration-200"
-          onClick={() => setShowDeleteConfirm(false)} // 点击背景关闭
+          onClick={() => setShowDeleteConfirm(false)}
         >
-          {/* 弹窗主体 */}
           <div 
             onClick={(e) => e.stopPropagation()} 
             className="bg-white rounded-2xl p-6 shadow-2xl w-[320px] flex flex-col items-center animate-in zoom-in-95 duration-200 border border-stone-100"
           >
-            {/* 1. 花朵 Emoji 动效 (变灰) */}
             <div className="text-5xl mb-4 animate-pulse grayscale transition-all duration-1000 select-none">
               🌸
             </div>
-            
-            {/* 2. 提示文字 */}
             <h3 className="text-stone-800 font-bold text-lg mb-8">确定删除花朵吗？</h3>
-            
-            {/* 3. 按钮组 */}
             <div className="flex gap-4 w-full">
-               {/* 取消按钮 */}
                <button 
                  onClick={() => setShowDeleteConfirm(false)} 
                  className="flex-1 py-2.5 rounded-xl border border-blue-100 bg-white text-blue-500 font-bold shadow-md hover:bg-blue-500 hover:text-white transition-all active:scale-95"
                >
                  取消
                </button>
-               {/* 确定按钮 */}
                <button 
                  onClick={handleConfirmDelete} 
                  className="flex-1 py-2.5 rounded-xl border border-red-100 bg-white text-red-500 font-bold shadow-md hover:bg-red-500 hover:text-white transition-all active:scale-95"

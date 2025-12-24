@@ -25,7 +25,6 @@ export default function AdminFlowerListItem({
   const listItemRef = useRef<HTMLDivElement>(null);
   const editFormRef = useRef<HTMLDivElement>(null);
   
-  // 删除相关状态
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -57,7 +56,6 @@ export default function AdminFlowerListItem({
         className={`
           relative w-full bg-white rounded-2xl shadow-sm border border-stone-200 
           transition-all duration-500 ease-in-out group hover:shadow-md
-          /* 删除动效 */
           ${isDeleting ? 'grayscale opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}
           ${isEditing ? 'z-50 ring-2 ring-stone-200' : 'z-0'}
         `}
@@ -65,7 +63,7 @@ export default function AdminFlowerListItem({
         {/* === 列表内容行 === */}
         <div className="flex items-center h-40 p-4 gap-6">
           
-          {/* 1. 左侧图片 (4:3 比例，像相册一样有距离) */}
+          {/* 左侧图片 */}
           <div className="relative h-32 w-[170px] shrink-0 ml-2 shadow-sm rounded-xl overflow-hidden border border-stone-100 bg-stone-50">
             <img 
               src={flower.imageUrl} 
@@ -75,17 +73,18 @@ export default function AdminFlowerListItem({
             />
           </div>
 
-          {/* 2. 中间：花名 (上下排列，居中对齐) */}
-          <div className="flex flex-col items-center justify-center min-w-[120px] gap-1 px-4 border-r border-stone-100/50">
-            <h3 className="font-serif font-bold text-stone-800 text-xl leading-none">
+          {/* 中间：花名 (放大字号) */}
+          <div className="flex flex-col items-center justify-center min-w-[120px] gap-2 px-4 border-r border-stone-100/50">
+            {/* 修改：加大字号 text-3xl */}
+            <h3 className="font-serif font-bold text-stone-800 text-3xl leading-none">
               {flower.name}
             </h3>
-            <p className="font-serif italic text-xs text-stone-400 leading-none">
+            <p className="font-serif italic text-sm text-stone-400 leading-none">
               {flower.englishName}
             </p>
           </div>
 
-          {/* 3. 右侧：信息 (右对齐) */}
+          {/* 右侧：信息 */}
           <div className="flex-1 flex flex-col items-end justify-center gap-2 overflow-hidden">
             <p 
                 className="text-stone-500 text-sm font-mono opacity-80 text-right line-clamp-2 w-full max-w-lg leading-relaxed italic" 
@@ -98,10 +97,8 @@ export default function AdminFlowerListItem({
             </span>
           </div>
 
-          {/* 4. 最右侧：操作区 (只有编辑和删除) */}
+          {/* 操作区 */}
           <div className="flex items-center gap-3 pl-6 pr-2 border-l border-stone-100 h-20">
-            
-            {/* 修改按钮：默认蓝字，悬浮蓝底白字 */}
             <button
               onClick={onToggleEdit}
               className={`
@@ -113,8 +110,6 @@ export default function AdminFlowerListItem({
             >
               {isEditing ? <X size={18} /> : <Pencil size={18} />}
             </button>
-
-            {/* 删除按钮：默认红字，悬浮红底白字 */}
             <button
               onClick={() => setShowDeleteConfirm(true)}
               className={`
@@ -134,9 +129,10 @@ export default function AdminFlowerListItem({
         {isEditing && (
           <div 
             ref={editFormRef}
-            className="absolute top-[calc(100%+0.75rem)] left-0 w-full bg-white rounded-2xl shadow-2xl border border-stone-200 p-6 z-50 animate-in slide-in-from-top-4 fade-in duration-300"
+            // 修改：动效与 AdminFlowerCard 保持一致 (ease-in-out + zoom-in)，更具流动感
+            className="absolute top-[calc(100%+0.75rem)] left-0 w-full bg-white rounded-2xl shadow-2xl border border-stone-200 p-6 z-50 animate-in fade-in zoom-in-95 duration-300 ease-in-out"
           >
-             {/* 顶部指示箭头 */}
+             {/* 顶部指示箭头 (保持在上方居中，适合列表布局) */}
              <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white border-t border-l border-stone-200 transform rotate-45"></div>
              
              <div className="flex justify-between items-center mb-6 border-b border-stone-100 pb-3">
@@ -154,7 +150,7 @@ export default function AdminFlowerListItem({
         )}
       </div>
 
-      {/* === 删除确认弹窗 (与卡片保持一致的圆角矩形风格) === */}
+      {/* 删除确认弹窗 */}
       {showDeleteConfirm && (
         <div 
           className="fixed inset-0 z-[999] flex items-center justify-center bg-black/20 backdrop-blur-sm animate-in fade-in duration-200"
