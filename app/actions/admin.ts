@@ -58,7 +58,7 @@ export async function testAIConnection() {
   }
 }
 
-// === 2. AI 生成 ===
+// === 2. AI 生成 (更新：支持别名) ===
 export async function generateFlowerContent(flowerName: string) {
   const config = await getSystemConfig();
   if (!config?.apiKey) throw new Error('AI 未配置');
@@ -66,9 +66,10 @@ export async function generateFlowerContent(flowerName: string) {
   const openai = new OpenAI({ baseURL: config.baseUrl, apiKey: config.apiKey });
   
   const prompt = `请根据花名"${flowerName}"生成以下 JSON 数据：
-    1. englishName: 对应的英文名称（例如：Red Peony）。
+    1. englishName: 对应的英文名称。
     2. language: 提炼一句唯美、治愈的花语（15字以内）。
-    3. habit: 简短的生长习性（例如：喜阳、耐旱）。
+    3. habit: 简短的生长习性。
+    4. alias: 2-3个常见的别名，使用中文顿号"、"分隔，如果没有则留空。
     只返回纯 JSON。`;
 
   const completion = await openai.chat.completions.create({
@@ -79,7 +80,7 @@ export async function generateFlowerContent(flowerName: string) {
   return JSON.parse(completion.choices[0].message.content || '{}');
 }
 
-// === 3. 花卉管理 CRUD ===
+// === 3. 花卉管理 CRUD (更新：支持新字段) ===
 export async function getFlowers() {
   return await prisma.flower.findMany({
     orderBy: { createdAt: 'desc' },
@@ -92,23 +93,26 @@ export async function createFlower(formData: FormData) {
   const imageUrl = formData.get('imageUrl') as string;
   const language = formData.get('language') as string;
   const habit = formData.get('habit') as string;
+  const alias = formData.get('alias') as string;
+  const photographer = formData.get('photographer') as string;
 
   await prisma.flower.create({
-    data: { name, englishName, imageUrl, language, habit },
+    data: { name, englishName, imageUrl, language, habit, alias, photographer },
   });
 
   revalidatePath('/admin/flowers'); 
 }
 
-// === 新增：批量导入 ===
+// === 批量导入 (更新：支持新字段) ===
 export async function batchCreateFlowers(flowers: any[]) {
-  // 过滤无效数据（必须有名字和图片）
   const validData = flowers.filter(f => f.name && f.imageUrl).map(f => ({
     name: f.name,
     englishName: f.englishName || '',
     imageUrl: f.imageUrl,
     language: f.language || '',
     habit: f.habit || '',
+    alias: f.alias || '',
+    photographer: f.photographer || ''
   }));
 
   if (validData.length === 0) {
@@ -123,6 +127,32 @@ export async function batchCreateFlowers(flowers: any[]) {
   return { count: validData.length };
 }
 
+// === 新增：批量更新 (用于批量更新模态框) ===
+export async function batchUpdateFlowers(flowers: any[]) {
+  // Prisma 不支持直接 updateMany 传入不同的值，所以使用事务循环更新
+  // 对于 SQLite/MySQL，这种量级通常没问题
+  const updates = flowers.map(f => 
+    prisma.flower.update({
+      where: { id: f.id },
+      data: {
+        name: f.name,
+        englishName: f.englishName,
+        language: f.language,
+        habit: f.habit,
+        alias: f.alias,
+        photographer: f.photographer,
+        // imageUrl 通常批量更新不改，但如果有也可以改
+        imageUrl: f.imageUrl
+      }
+    })
+  );
+
+  await prisma.$transaction(updates);
+
+  revalidatePath('/admin/flowers');
+  return { success: true };
+}
+
 export async function deleteFlower(id: string) {
   await prisma.flower.delete({ where: { id } });
   revalidatePath('/admin/flowers');
@@ -134,10 +164,12 @@ export async function updateFlower(id: string, formData: FormData) {
   const imageUrl = formData.get('imageUrl') as string;
   const language = formData.get('language') as string;
   const habit = formData.get('habit') as string;
+  const alias = formData.get('alias') as string;
+  const photographer = formData.get('photographer') as string;
 
   await prisma.flower.update({
     where: { id },
-    data: { name, englishName, imageUrl, language, habit },
+    data: { name, englishName, imageUrl, language, habit, alias, photographer },
   });
 
   revalidatePath('/admin/flowers');

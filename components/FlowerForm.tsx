@@ -1,39 +1,54 @@
 'use client';
 
+import { useState } from 'react';
 import { createFlower, updateFlower, generateFlowerContent } from '@/app/actions/admin';
 import { Flower } from '@prisma/client';
-import { Save, Loader2, Sparkles, Image as ImageIcon, Eye, X, Plus } from 'lucide-react';
-import { useRef, useState, useEffect } from 'react';
+import { Loader2, Sparkles, Search, Image as ImageIcon } from 'lucide-react';
+import UnsplashSearchModal from '@/components/UnsplashSearchModal';
 
 interface FlowerFormProps {
   flower?: Flower;
-  onSuccess?: () => void;
+  onSuccess: () => void;
 }
 
 export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
-  const formRef = useRef<HTMLFormElement>(null);
-  const imageUrlRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState(flower?.imageUrl || '');
+  const [showUnsplash, setShowUnsplash] = useState(false);
+  
+  // === 状态管理 (受控组件模式，解决 null 报错) ===
+  const [name, setName] = useState(flower?.name || '');
+  const [englishName, setEnglishName] = useState(flower?.englishName || '');
+  const [alias, setAlias] = useState(flower?.alias || ''); // 新增：别名
+  const [imageUrl, setImageUrl] = useState(flower?.imageUrl || '');
+  const [photographer, setPhotographer] = useState(flower?.photographer || ''); // 新增：拍摄者
+  const [language, setLanguage] = useState(flower?.language || '');
+  const [habit, setHabit] = useState(flower?.habit || '');
 
-  useEffect(() => {
-    if (flower?.imageUrl) setPreviewUrl(flower.imageUrl);
-  }, [flower]);
-
-  const handleSubmit = async (formData: FormData) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
+
+    const formData = new FormData();
+    formData.append('name', name);
+    formData.append('englishName', englishName);
+    formData.append('alias', alias);
+    formData.append('imageUrl', imageUrl);
+    formData.append('photographer', photographer);
+    formData.append('language', language);
+    formData.append('habit', habit);
+
     try {
       if (flower) {
         await updateFlower(flower.id, formData);
       } else {
         await createFlower(formData);
-        formRef.current?.reset();
-        setPreviewUrl('');
+        // 新增成功后重置表单
+        setName(''); setEnglishName(''); setAlias(''); 
+        setImageUrl(''); setPhotographer(''); 
+        setLanguage(''); setHabit('');
       }
-      if (onSuccess) onSuccess();
+      onSuccess();
     } catch (error) {
       console.error(error);
       alert('操作失败，请重试');
@@ -43,284 +58,161 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
   };
 
   const handleAIGenerate = async () => {
-    const form = formRef.current;
-    if (!form) return;
-    
-    const formData = new FormData(form);
-    const name = formData.get('name') as string;
-
-    if (!name) {
-      alert('请先输入花名');
-      return;
-    }
-
+    if (!name) return alert('请先填写花名');
     setAiLoading(true);
     try {
       const data = await generateFlowerContent(name);
-      
-      // 自动填充字段
-      const engInput = form.elements.namedItem('englishName') as HTMLInputElement;
-      const langInput = form.elements.namedItem('language') as HTMLInputElement;
-      const habitInput = form.elements.namedItem('habit') as HTMLInputElement;
-
-      if (engInput && data.englishName) engInput.value = data.englishName;
-      if (langInput) langInput.value = data.language || '';
-      if (habitInput) habitInput.value = data.habit || '';
-
-    } catch (error: any) {
-      console.error(error);
-      alert(error.message || 'AI 生成失败');
+      // 仅当字段为空时补充，或根据需要覆盖
+      if (data.englishName) setEnglishName(data.englishName);
+      if (data.language) setLanguage(data.language);
+      if (data.habit) setHabit(data.habit);
+      if (data.alias) setAlias(data.alias); 
+    } catch (error) {
+      console.error('AI Error:', error);
+      alert('AI 生成失败，请检查系统配置');
     } finally {
       setAiLoading(false);
     }
   };
 
-  const handlePreviewImage = () => {
-    if (imageUrlRef.current) {
-      const url = imageUrlRef.current.value;
-      if (url) setPreviewUrl(url);
-      else alert("请先输入图片链接");
-    }
-  };
-
-  const handleClear = (name: string) => {
-    if (formRef.current) {
-      const input = formRef.current.elements.namedItem(name) as HTMLInputElement;
-      if (input) {
-        input.value = '';
-        input.focus();
-        if (name === 'imageUrl') setPreviewUrl('');
-      }
-    }
-  };
-
-  const handleUploadClick = () => fileInputRef.current?.click();
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      alert('请选择图片文件');
-      return;
-    }
-    
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
-      if (base64 && imageUrlRef.current) {
-        imageUrlRef.current.value = base64;
-        setPreviewUrl(base64);
-      }
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
-  };
-
   return (
-    <form 
-      ref={formRef}
-      action={handleSubmit}
-      className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300"
-    >
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <>
+      <form onSubmit={handleSubmit} className="space-y-5">
         
-        {/* === 左列：花名 + 图片预览 === */}
-        <div className="space-y-5">
-          
-          {/* 1. 花名 */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-stone-600 block">花名</label>
-            <div className="flex rounded-lg shadow-sm">
-              <div className="relative flex-1 min-w-0 group">
-                <input 
-                  name="name" 
-                  required 
-                  defaultValue={flower?.name} 
-                  className="block w-full px-3 py-2 rounded-l-lg border border-stone-300 text-sm outline-none focus:ring-2 focus:ring-stone-400 focus:border-stone-400 transition pr-8"
-                  placeholder="例如：红牡丹" 
-                />
-                <button 
-                  type="button" 
-                  onClick={() => handleClear('name')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                  title="清空"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-              <button 
-                type="button" 
-                onClick={handleAIGenerate}
-                disabled={aiLoading || loading}
-                className="inline-flex items-center px-3 py-2 border border-l-0 border-purple-200 bg-purple-50 text-purple-600 hover:bg-purple-100 rounded-r-lg text-xs font-medium transition whitespace-nowrap"
-                title="自动生成信息"
-              >
-                {aiLoading ? <Loader2 className="animate-spin w-4 h-4 mr-1"/> : <Sparkles className="w-4 h-4 mr-1"/>}
-                AI 生成
-              </button>
-            </div>
+        {/* === 第一行：花名 + AI 按钮 === */}
+        <div className="flex gap-3 items-end">
+          <div className="flex-1 space-y-1.5">
+            <label className="text-xs font-bold text-stone-500 uppercase tracking-wider ml-1">花卉名称</label>
+            <input 
+              name="name" 
+              required 
+              placeholder="例如：红玫瑰" 
+              value={name}
+              onChange={e => setName(e.target.value)}
+              className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:ring-2 focus:ring-stone-200 transition text-stone-800 font-medium"
+            />
           </div>
+          <button
+            type="button"
+            onClick={handleAIGenerate}
+            disabled={aiLoading || !name}
+            className="mb-[1px] px-5 py-2.5 bg-purple-50 text-purple-600 border border-purple-100 rounded-xl hover:bg-purple-100 hover:border-purple-200 transition disabled:opacity-50 flex items-center gap-2 font-bold h-[46px] shadow-sm"
+            title="自动生成信息"
+          >
+            {aiLoading ? <Loader2 className="animate-spin" size={18} /> : <Sparkles size={18} />}
+            <span className="text-sm hidden sm:inline">AI 补全</span>
+          </button>
+        </div>
 
-          {/* 2. 图片预览窗 */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-stone-600 block">图片预览</label>
-            <div className="w-full aspect-[4/3] bg-stone-100 border-2 border-dashed border-stone-300 rounded-xl overflow-hidden flex items-center justify-center relative group">
-              {previewUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img 
-                  src={previewUrl} 
-                  alt="Preview" 
-                  className="w-full h-full object-cover animate-in fade-in duration-500"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                    setPreviewUrl('');
-                  }}
-                />
-              ) : (
-                <div className="text-stone-400 flex flex-col items-center gap-2">
-                  <ImageIcon size={32} strokeWidth={1.5} />
-                  <span className="text-xs">暂无图片</span>
+        {/* === 第二行：英文名 + 别名 === */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-stone-500 uppercase tracking-wider ml-1">英文名称</label>
+            <input 
+              name="englishName" 
+              placeholder="e.g. Red Rose" 
+              value={englishName}
+              onChange={e => setEnglishName(e.target.value)}
+              className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:ring-2 focus:ring-stone-200 transition font-serif italic text-stone-700"
+            />
+          </div>
+          <div className="space-y-1.5">
+             <label className="text-xs font-bold text-stone-500 uppercase tracking-wider ml-1">别名 (用、分隔)</label>
+             <input 
+               name="alias"
+               placeholder="e.g. 刺玫花、徘徊花" 
+               value={alias}
+               onChange={e => setAlias(e.target.value)}
+               className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:ring-2 focus:ring-stone-200 transition text-sm text-stone-600"
+             />
+          </div>
+        </div>
+
+        {/* === 第三行：图片链接 + Unsplash + 拍摄者 === */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-stone-500 uppercase tracking-wider ml-1">图片来源</label>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 flex gap-2">
+                <div className="relative flex-1">
+                    <input 
+                    name="imageUrl" 
+                    required 
+                    placeholder="https://images.unsplash.com/..." 
+                    value={imageUrl}
+                    onChange={e => setImageUrl(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:ring-2 focus:ring-stone-200 transition font-mono text-xs text-stone-600"
+                    />
+                    <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={14} />
                 </div>
-              )}
+                <button
+                    type="button"
+                    onClick={() => setShowUnsplash(true)}
+                    className="px-3 py-2 bg-stone-100 border border-stone-200 text-stone-600 rounded-xl hover:bg-white hover:border-stone-300 hover:shadow-sm transition flex items-center justify-center"
+                    title="在 Unsplash 搜索图片"
+                >
+                    <Search size={18} />
+                </button>
             </div>
-          </div>
-
-        </div>
-
-        {/* === 右列：英文名/花语 + 链接 + 习性 === */}
-        <div className="space-y-5">
-          
-          {/* 1. 组合行：英文名 + 花语 (各占 50%) */}
-          <div className="grid grid-cols-2 gap-4">
             
-            {/* 英文名 (新增) */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-stone-600 block">英文名</label>
-              <div className="relative group">
+            <div className="w-full sm:w-1/3 relative">
                 <input 
-                  name="englishName" 
-                  // 英文名非必填
-                  defaultValue={flower?.englishName} 
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-stone-400 transition pr-8 font-serif italic"
-                  placeholder="Peony" 
+                    name="photographer"
+                    placeholder="拍摄者 (可选)" 
+                    value={photographer}
+                    onChange={e => setPhotographer(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:ring-2 focus:ring-stone-200 transition text-xs text-stone-600"
                 />
-                <button 
-                  type="button" 
-                  onClick={() => handleClear('englishName')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            </div>
-
-            {/* 花语 */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-stone-600 block">花语</label>
-              <div className="relative group">
-                <input 
-                  name="language" 
-                  required 
-                  defaultValue={flower?.language} 
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-stone-400 transition pr-8"
-                  placeholder="雍容华贵" 
-                />
-                <button 
-                  type="button" 
-                  onClick={() => handleClear('language')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                >
-                  <X size={14} />
-                </button>
-              </div>
             </div>
           </div>
-
-          {/* 2. 图片链接 */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-stone-600 block">图片链接</label>
-            <div className="flex gap-2 items-center">
-              <div className="relative flex-1 group">
-                <input 
-                  name="imageUrl" 
-                  ref={imageUrlRef}
-                  required 
-                  defaultValue={flower?.imageUrl} 
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm font-mono outline-none focus:ring-2 focus:ring-stone-400 transition pr-8"
-                  placeholder="https://..." 
-                />
-                <button 
-                  type="button" 
-                  onClick={() => handleClear('imageUrl')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-
-              <input 
-                type="file" 
-                ref={fileInputRef}
-                className="hidden" 
-                accept="image/*"
-                onChange={handleFileChange}
-              />
-              <button
-                type="button"
-                onClick={handleUploadClick}
-                className="shrink-0 w-9 h-9 flex items-center justify-center rounded-full bg-stone-100 border border-stone-200 text-stone-600 hover:bg-stone-200 hover:scale-105 active:scale-95 transition shadow-sm"
-                title="上传本地图片"
-              >
-                <Plus size={18} />
-              </button>
-
-              <button
-                type="button"
-                onClick={handlePreviewImage}
-                className="shrink-0 w-9 h-9 flex items-center justify-center rounded-full bg-stone-100 border border-stone-200 text-stone-600 hover:bg-stone-200 hover:scale-105 active:scale-95 transition shadow-sm"
-                title="预览图片链接"
-              >
-                <Eye size={18} /> 
-              </button>
-            </div>
-          </div>
-
-          {/* 3. 习性标签 */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-stone-600 block">习性标签</label>
-            <div className="relative group">
-              <input 
-                name="habit" 
-                required 
-                defaultValue={flower?.habit} 
-                className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-stone-400 transition pr-8"
-                placeholder="例如：喜阳、耐寒" 
-              />
-              <button 
-                type="button" 
-                onClick={() => handleClear('habit')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          </div>
-
         </div>
-      </div>
 
-      {/* 底部按钮区 */}
-      <div className="pt-4 flex justify-end border-t border-stone-100">
+        {/* === 第四行：花语 === */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-stone-500 uppercase tracking-wider ml-1">花语</label>
+          <input 
+            name="language" 
+            required 
+            placeholder="用一句话描述它的寓意" 
+            value={language}
+            onChange={e => setLanguage(e.target.value)}
+            className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:ring-2 focus:ring-stone-200 transition text-stone-700"
+          />
+        </div>
+
+        {/* === 第五行：习性 === */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-stone-500 uppercase tracking-wider ml-1">生长习性</label>
+          <input 
+            name="habit" 
+            required 
+            placeholder="简短描述，例如：喜阳、耐旱" 
+            value={habit}
+            onChange={e => setHabit(e.target.value)}
+            className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:ring-2 focus:ring-stone-200 transition text-stone-700"
+          />
+        </div>
+
+        {/* === 提交按钮 === */}
         <button 
           type="submit" 
-          disabled={loading || aiLoading}
-          className="flex items-center gap-2 px-8 py-2.5 bg-stone-900 text-white text-sm font-medium rounded-lg hover:bg-stone-800 active:scale-95 transition disabled:opacity-70 shadow-lg shadow-stone-200"
+          disabled={loading}
+          className="w-full mt-2 py-3 bg-stone-900 text-white rounded-xl font-bold hover:bg-stone-800 transition-all active:scale-[0.98] disabled:opacity-70 flex items-center justify-center gap-2 shadow-lg shadow-stone-200 hover:shadow-xl"
         >
-          {loading ? <Loader2 className="animate-spin w-4 h-4"/> : <Save className="w-4 h-4"/>}
-          {flower ? '保存修改' : '立即录入'}
+          {loading && <Loader2 className="animate-spin" size={18} />}
+          {flower ? '保存修改' : '确认录入'}
         </button>
-      </div>
-    </form>
+      </form>
+
+      {/* === Unsplash 搜索弹窗 === */}
+      <UnsplashSearchModal 
+        isOpen={showUnsplash}
+        onClose={() => setShowUnsplash(false)}
+        initialQuery={englishName || name || ''} // 优先使用英文名搜索
+        onSelect={(url, user) => {
+          setImageUrl(url);
+          setPhotographer(user);
+        }}
+      />
+    </>
   );
 }

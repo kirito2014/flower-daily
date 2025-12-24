@@ -9,21 +9,24 @@ datasource db {
 
 
 model Flower {
-  id          String   @id @default(uuid())
-  name        String
-  englishName String   @default("") // 新增：英文名
-  language    String
-  imageUrl    String
-  habit       String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  name         String
+  englishName  String?
+  alias        String?  // 新增：别名 (不展示，用于搜索，AI更新)
+  imageUrl     String
+  photographer String?  // 新增：拍摄者/版权方
+  language     String   // 花语
+  habit        String   // 习性
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model AppConfig {
-  id        String   @id @default("global_config")
-  baseUrl   String   @default("https://api.openai.com/v1")
-  apiKey    String?
-  modelName String   @default("gpt-3.5-turbo")
+  id        String   @id // 固定为 'global_config'
+  baseUrl   String   // AI API Base URL
+  apiKey    String   // Encrypted API Key
+  modelName String   // e.g. gpt-3.5-turbo
+  updatedAt DateTime @updatedAt
 }
 
 // === 用户模型 (更新) ===
@@ -36,7 +39,6 @@ model User {
   isActive     Boolean   @default(true) // 是否启用
   roleId       String?   // 角色ID
   role         Role?     @relation(fields: [roleId], references: [id])
-
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -49,7 +51,16 @@ model Role {
   description String?
   permissions String   // 存储菜单权限列表的 JSON 字符串，例如 '["flowers", "users"]'
   users       User[]
-  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+
+// 新增：图片服务配置
+model ImageConfig {
+  id        String   @id // 固定为 'image_config'
+  accessKey String   // Unsplash Access Key (Encrypted)
+  secretKey String?  // Unsplash Secret Key (Encrypted, optional for search)
+  provider  String   @default("unsplash")
+  updatedAt DateTime @updatedAt
 }

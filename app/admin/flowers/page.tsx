@@ -5,7 +5,8 @@ import { getFlowers, deleteFlower } from '@/app/actions/admin';
 import FlowerForm from '@/components/FlowerForm';
 import AdminFlowerCard from '@/components/AdminFlowerCard';
 import AdminFlowerListItem from '@/components/AdminFlowerListItem';
-import BatchImportModal from '@/components/BatchImportModal'; // 引入新组件
+import BatchImportModal from '@/components/BatchImportModal';
+import BatchUpdateModal from '@/components/BatchUpdateModal'; // 新增组件
 import { Flower } from '@prisma/client';
 import { 
   Search, 
@@ -18,7 +19,8 @@ import {
   X,
   LayoutGrid, 
   StretchHorizontal,
-  UploadCloud // 导入图标
+  UploadCloud,
+  RefreshCw // 批量更新图标
 } from 'lucide-react';
 
 export default function AdminFlowersPage() {
@@ -26,16 +28,14 @@ export default function AdminFlowersPage() {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // 视图模式状态
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  // 导入模态框状态
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isUpdateOpen, setIsUpdateOpen] = useState(false); // 批量更新状态
 
   const [searchText, setSearchText] = useState('');
   const [filterText, setFilterText] = useState('');
   const [sortKey, setSortKey] = useState('created_desc');
 
-  // === 加载数据 ===
   const loadFlowers = async () => {
     try {
       if (flowers.length === 0) setLoading(true);
@@ -65,12 +65,13 @@ export default function AdminFlowersPage() {
   const processedFlowers = useMemo(() => {
     let res = [...flowers];
 
-    // 1. 搜索
+    // 1. 搜索 (支持别名 alias)
     if (searchText.trim()) {
       const lowerSearch = searchText.toLowerCase();
       res = res.filter(f => 
         f.name.toLowerCase().includes(lowerSearch) || 
-        (f.englishName || '').toLowerCase().includes(lowerSearch)
+        (f.englishName || '').toLowerCase().includes(lowerSearch) ||
+        (f.alias || '').toLowerCase().includes(lowerSearch) // 新增：别名搜索
       );
     }
 
@@ -79,7 +80,8 @@ export default function AdminFlowersPage() {
       const lowerFilter = filterText.toLowerCase();
       res = res.filter(f => 
         f.language.toLowerCase().includes(lowerFilter) || 
-        f.habit.toLowerCase().includes(lowerFilter)
+        f.habit.toLowerCase().includes(lowerFilter) ||
+        (f.alias || '').includes(lowerFilter) // 支持别名筛选
       );
     }
 
@@ -101,8 +103,8 @@ export default function AdminFlowersPage() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div>
-        <h2 className="text-2xl font-serif font-bold text-stone-800 ">花卉管理</h2>
-        <p className="text-stone-500 font-seriftext-sm mt-1 ">录入新的花卉信息，或管理已有的花卉卡片。</p>
+        <h2 className="text-2xl font-serif font-bold text-stone-800">花卉管理</h2>
+        <p className="text-stone-500 text-sm mt-1">录入新的花卉信息，或管理已有的花卉卡片。</p>
       </div>
 
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
@@ -120,12 +122,11 @@ export default function AdminFlowersPage() {
         
         {/* 左侧：搜索与筛选 */}
         <div className="flex flex-1 gap-3 flex-col sm:flex-row">
-          
           <div className="relative group flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 group-focus-within:text-blue-500 transition-colors" size={16} />
             <input 
               type="text"
-              placeholder="搜索花名 (中/英)..."
+              placeholder="搜索花名 / 别名 / 英文名..."
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               className="w-full pl-9 pr-10 py-2.5 bg-white border border-stone-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition shadow-sm"
@@ -145,7 +146,7 @@ export default function AdminFlowersPage() {
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 group-focus-within:text-purple-500 transition-colors" size={16} />
             <input 
               type="text"
-              placeholder="筛选花语或习性..."
+              placeholder="筛选花语 / 习性 / 别名..."
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
               className="w-full pl-9 pr-10 py-2.5 bg-white border border-stone-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-100 focus:border-purple-400 transition shadow-sm"
@@ -162,7 +163,7 @@ export default function AdminFlowersPage() {
           </div>
         </div>
 
-        {/* 右侧：排序 / 导入 / 视图切换 */}
+        {/* 右侧：排序 / 导入 / 批量更新 / 视图 */}
         <div className="flex items-center gap-3">
             
             <div className="relative min-w-[180px]">
@@ -183,7 +184,7 @@ export default function AdminFlowersPage() {
               <ArrowUpDown className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" size={14} />
             </div>
 
-            {/* === 新增：批量导入按钮 (磨砂悬浮风格) === */}
+            {/* 批量导入 */}
             <button
               onClick={() => setIsImportOpen(true)}
               className="group relative w-10 h-10 flex items-center justify-center bg-white border border-stone-200 rounded-xl shadow-sm hover:border-green-300 hover:shadow-md hover:bg-green-50 transition-all active:scale-95"
@@ -192,7 +193,16 @@ export default function AdminFlowersPage() {
               <UploadCloud size={18} className="text-stone-500 group-hover:text-green-600 transition-colors" />
             </button>
 
-            {/* 视图切换按钮 */}
+            {/* 新增：批量更新 (位于导入和视图之间) */}
+            <button
+              onClick={() => setIsUpdateOpen(true)}
+              className="group relative w-10 h-10 flex items-center justify-center bg-white border border-stone-200 rounded-xl shadow-sm hover:border-purple-300 hover:shadow-md hover:bg-purple-50 transition-all active:scale-95"
+              title="批量更新存量数据"
+            >
+              <RefreshCw size={18} className="text-stone-500 group-hover:text-purple-600 transition-colors" />
+            </button>
+
+            {/* 视图切换 */}
             <button
               onClick={() => setViewMode(prev => prev === 'grid' ? 'list' : 'grid')}
               className="group relative w-10 h-10 flex items-center justify-center bg-white border border-stone-200 rounded-xl shadow-sm hover:border-blue-300 hover:shadow-md hover:bg-blue-50 transition-all active:scale-95 overflow-hidden"
@@ -217,12 +227,9 @@ export default function AdminFlowersPage() {
         </div>
       </div>
 
-      {/* === 批量导入模态框 === */}
-      <BatchImportModal 
-        isOpen={isImportOpen} 
-        onClose={() => setIsImportOpen(false)} 
-        onSuccess={loadFlowers} 
-      />
+      {/* 模态框组件 */}
+      <BatchImportModal isOpen={isImportOpen} onClose={() => setIsImportOpen(false)} onSuccess={loadFlowers} />
+      <BatchUpdateModal isOpen={isUpdateOpen} onClose={() => setIsUpdateOpen(false)} onSuccess={loadFlowers} />
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 text-stone-400 gap-3">
@@ -230,14 +237,7 @@ export default function AdminFlowersPage() {
           <p className="text-sm">正在加载花圃...</p>
         </div>
       ) : processedFlowers.length > 0 ? (
-        
-        <div className={`
-            grid gap-6
-            ${viewMode === 'grid' 
-                ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' 
-                : 'grid-cols-1'
-            }
-        `}>
+        <div className={`grid gap-6 ${viewMode === 'grid' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1'}`}>
           {processedFlowers.map((flower, index) => (
              viewMode === 'grid' ? (
                 <AdminFlowerCard 
