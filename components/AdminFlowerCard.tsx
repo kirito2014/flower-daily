@@ -168,7 +168,8 @@ export default function AdminFlowerCard({
               根据 isLeftHalf 决定箭头位置（左或右），并垂直居中
             */}
             <div className={`
-                absolute top-1/2 w-4 h-4 bg-white border-stone-200 transform rotate-45 -translate-y-1/2
+                absolute top-1/4 w-4 h-4 bg-white border-stone-200 transform rotate-45 -translate-y-1/2
+                // absolute top-1/2 w-4 h-4 bg-white border-stone-200 transform rotate-45 -mt-2
                 ${isLeftHalf 
                   ? '-left-2 border-b border-l' // 向右弹，箭头在左侧，指向卡片
                   : '-right-2 border-t border-r' // 向左弹，箭头在右侧，指向卡片
