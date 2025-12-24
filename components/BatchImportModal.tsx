@@ -2,8 +2,9 @@
 
 import { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { X, Upload, FileSpreadsheet, Check, AlertCircle, Loader2, Sparkles, Trash2, Download } from 'lucide-react';
+import { X, Upload, FileSpreadsheet, Check, AlertCircle, Loader2, Sparkles, Trash2, Download, Search, Eye } from 'lucide-react';
 import { generateFlowerContent, batchCreateFlowers } from '@/app/actions/admin';
+import UnsplashSearchModal from '@/components/UnsplashSearchModal';
 
 interface ImportData {
   id: string;
@@ -28,6 +29,10 @@ export default function BatchImportModal({ isOpen, onClose, onSuccess }: BatchIm
   const [data, setData] = useState<ImportData[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Unsplash 相关
+  const [showUnsplash, setShowUnsplash] = useState(false);
+  const [activeRowId, setActiveRowId] = useState<string | null>(null);
 
   const handleDownloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
@@ -131,18 +136,26 @@ export default function BatchImportModal({ isOpen, onClose, onSuccess }: BatchIm
     }
   };
 
+  const openSearch = (id: string) => {
+    setActiveRowId(id);
+    setShowUnsplash(true);
+  };
+
+  const activeRow = data.find(item => item.id === activeRowId);
+  const searchInitialQuery = activeRow ? (activeRow.englishName || activeRow.name) : '';
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/30 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-white/95 w-[95%] max-w-7xl h-[85vh] rounded-3xl shadow-2xl border border-white/50 flex flex-col overflow-hidden relative">
-        <div className="px-8 py-6 border-b border-stone-100 flex justify-between items-center bg-white/50 backdrop-blur-xl">
+      <div className="bg-white/95 w-[95%] max-w-[90rem] h-[90vh] rounded-3xl shadow-2xl border border-white/50 flex flex-col overflow-hidden relative">
+        <div className="px-8 py-6 border-b border-stone-100 flex justify-between items-center bg-white/50 backdrop-blur-xl z-20 relative">
           <div>
             <h2 className="text-2xl font-serif font-bold text-stone-800 flex items-center gap-2">
               <FileSpreadsheet className="text-green-600" />
               批量导入花卉
             </h2>
-            <p className="text-stone-500 text-xs mt-1">支持 .xlsx 格式</p>
+            <p className="text-stone-500 text-xs mt-1">支持 .xlsx 格式，批量录入后可自动识别补充信息</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-stone-100 rounded-full transition-colors"><X className="text-stone-500" /></button>
         </div>
@@ -161,7 +174,7 @@ export default function BatchImportModal({ isOpen, onClose, onSuccess }: BatchIm
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-4 pb-20">
               <div className="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border border-stone-100 sticky top-0 z-10">
                 <div className="flex items-center gap-4 px-2">
                    <span className="text-sm font-bold text-stone-700">已加载 {data.length} 条</span>
@@ -173,13 +186,14 @@ export default function BatchImportModal({ isOpen, onClose, onSuccess }: BatchIm
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
+              {/* 核心修复：overflow-visible */}
+              <div className="bg-white rounded-2xl border border-stone-200 overflow-visible shadow-sm">
                 <table className="w-full text-sm text-left">
-                  <thead className="bg-stone-50 text-stone-500 font-medium">
+                  <thead className="bg-stone-50 text-stone-500 font-medium sticky top-0 z-10 shadow-sm">
                     <tr>
                       <th className="p-4 w-12 text-center"><input type="checkbox" onChange={toggleSelectAll} className="rounded border-stone-300" /></th>
                       <th className="p-4 w-[10%]">花名*</th>
-                      <th className="p-4 w-[20%]">图片链接*</th>
+                      <th className="p-4 w-[25%]">图片链接 / 搜索 / 预览</th>
                       <th className="p-4 w-[12%]">英文名</th>
                       <th className="p-4 w-[12%]">别名</th>
                       <th className="p-4 w-[15%]">花语</th>
@@ -189,10 +203,40 @@ export default function BatchImportModal({ isOpen, onClose, onSuccess }: BatchIm
                   </thead>
                   <tbody className="divide-y divide-stone-100">
                     {data.map((row) => (
-                      <tr key={row.id} className={`hover:bg-stone-50/50 transition ${!row.selected ? 'opacity-50 grayscale' : ''}`}>
+                      <tr key={row.id} className={`hover:bg-stone-50/50 transition relative ${!row.selected ? 'opacity-50 grayscale' : ''}`}>
                         <td className="p-4 text-center"><input type="checkbox" checked={row.selected} onChange={() => toggleSelect(row.id)} className="rounded border-stone-300" /></td>
                         <td className="p-2"><input value={row.name} onChange={(e) => updateCell(row.id, 'name', e.target.value)} className={`w-full px-2 py-1 bg-stone-50 border rounded ${!row.name ? 'bg-red-50 border-red-300' : 'border-transparent'}`} /></td>
-                        <td className="p-2"><input value={row.imageUrl} onChange={(e) => updateCell(row.id, 'imageUrl', e.target.value)} className={`w-full px-2 py-1 bg-stone-50 border rounded text-xs ${!row.imageUrl ? 'bg-red-50 border-red-300' : 'border-transparent'}`} /></td>
+                        
+                        {/* 图片编辑列：带搜索和预览 */}
+                        <td className="p-2 relative">
+                          <div className="flex gap-2 items-center">
+                             <input 
+                               value={row.imageUrl} 
+                               onChange={(e) => updateCell(row.id, 'imageUrl', e.target.value)} 
+                               className={`flex-1 w-full px-2 py-1 bg-stone-50 border rounded text-xs font-mono truncate ${!row.imageUrl ? 'bg-red-50 border-red-300' : 'border-stone-200'}`} 
+                             />
+                             <button 
+                               onClick={() => openSearch(row.id)}
+                               className="p-1.5 bg-stone-100 rounded-lg hover:bg-blue-100 hover:text-blue-600 transition"
+                               title="搜索替换"
+                             >
+                               <Search size={14} />
+                             </button>
+                             <div className="relative group/preview">
+                               <button className="p-1.5 bg-stone-100 rounded-lg hover:bg-purple-100 hover:text-purple-600 transition cursor-help">
+                                 <Eye size={14} />
+                               </button>
+                               {/* 预览悬浮窗：z-[9999] */}
+                               {row.imageUrl && (
+                                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 h-48 bg-white shadow-2xl rounded-xl border border-stone-200 p-1 hidden group-hover/preview:block z-[9999] animate-in fade-in zoom-in-95 pointer-events-none">
+                                   {/* eslint-disable-next-line @next/next/no-img-element */}
+                                   <img src={row.imageUrl} alt="preview" className="w-full h-full object-cover rounded-lg bg-stone-100" />
+                                 </div>
+                               )}
+                             </div>
+                          </div>
+                        </td>
+
                         <td className="p-2"><input value={row.englishName} onChange={(e) => updateCell(row.id, 'englishName', e.target.value)} className="w-full px-2 py-1 bg-transparent border-transparent hover:border-stone-200 border rounded" /></td>
                         <td className="p-2"><input value={row.alias} onChange={(e) => updateCell(row.id, 'alias', e.target.value)} className="w-full px-2 py-1 bg-transparent border-transparent hover:border-stone-200 border rounded text-xs" /></td>
                         <td className="p-2"><input value={row.language} onChange={(e) => updateCell(row.id, 'language', e.target.value)} className="w-full px-2 py-1 bg-transparent border-transparent hover:border-stone-200 border rounded" /></td>
@@ -207,7 +251,7 @@ export default function BatchImportModal({ isOpen, onClose, onSuccess }: BatchIm
           )}
         </div>
 
-        <div className="p-6 border-t border-stone-100 bg-white/80 backdrop-blur-xl flex justify-between items-center">
+        <div className="p-6 border-t border-stone-100 bg-white/80 backdrop-blur-xl flex justify-end gap-4 z-20 relative">
            <button onClick={() => fileInputRef.current?.click()} className="text-stone-500 hover:text-stone-800 text-sm font-medium flex items-center gap-2"><Upload size={16} /> 重新上传</button>
            <div className="flex gap-4">
              <button onClick={onClose} className="px-6 py-2.5 rounded-xl border border-stone-200 text-stone-600 font-medium">取消</button>
@@ -216,6 +260,23 @@ export default function BatchImportModal({ isOpen, onClose, onSuccess }: BatchIm
         </div>
         <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleFileChange} />
       </div>
+
+      {showUnsplash && (
+        <UnsplashSearchModal 
+          isOpen={true} 
+          onClose={() => setShowUnsplash(false)} 
+          initialQuery={searchInitialQuery}
+          onSelect={(url, user) => {
+            if (activeRowId) {
+              setData(prev => prev.map(item => item.id === activeRowId ? { 
+                ...item, 
+                imageUrl: url,
+                photographer: user
+              } : item));
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -25,7 +25,6 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
   // Unsplash 相关状态
   const [showUnsplash, setShowUnsplash] = useState(false);
   const [activeRowId, setActiveRowId] = useState<string | null>(null);
-  const [hoverImage, setHoverImage] = useState<string | null>(null); // 预览图片的URL
 
   useEffect(() => {
     if (isOpen) {
@@ -125,13 +124,11 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
     }
   };
 
-  // 打开搜索框
   const openSearch = (id: string) => {
     setActiveRowId(id);
     setShowUnsplash(true);
   };
 
-  // 获取当前正在编辑行的英文名，用于搜索初始值
   const activeRow = data.find(item => item.id === activeRowId);
   const searchInitialQuery = activeRow ? (activeRow.englishName || activeRow.name) : '';
 
@@ -141,7 +138,8 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/30 backdrop-blur-md animate-in fade-in duration-200">
       <div className="bg-white/95 w-[95%] max-w-[90rem] h-[90vh] rounded-3xl shadow-2xl border border-white/50 flex flex-col overflow-hidden relative">
         
-        <div className="px-8 py-6 border-b border-stone-100 flex justify-between items-center bg-white/50 backdrop-blur-xl">
+        {/* Header */}
+        <div className="px-8 py-6 border-b border-stone-100 flex justify-between items-center bg-white/50 backdrop-blur-xl z-20 relative">
           <div>
             <h2 className="text-2xl font-serif font-bold text-stone-800 flex items-center gap-2">
               <RefreshCw className="text-purple-600" />
@@ -170,9 +168,12 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
                 </div>
               </div>
 
+              {/* 核心修复：overflow-visible 
+                 让内部的 absolute 预览图可以超出表格边界显示
+              */}
               <div className="bg-white rounded-2xl border border-stone-200 overflow-visible shadow-sm">
                 <table className="w-full text-sm text-left">
-                  <thead className="bg-stone-50 text-stone-500 font-medium sticky top-0 z-20">
+                  <thead className="bg-stone-50 text-stone-500 font-medium sticky top-0 z-10 shadow-sm">
                     <tr>
                       <th className="p-4 w-12 text-center"><input type="checkbox" onChange={toggleSelectAll} className="rounded border-stone-300 text-blue-600" /></th>
                       <th className="p-4 w-[10%]">花名</th>
@@ -186,19 +187,18 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
                   </thead>
                   <tbody className="divide-y divide-stone-100">
                     {data.map((row) => (
-                      <tr key={row.id} className={`hover:bg-stone-50/50 transition ${!row.selected ? 'opacity-90' : 'bg-blue-50/30'}`}>
+                      <tr key={row.id} className={`hover:bg-stone-50/50 transition relative ${!row.selected ? 'opacity-90' : 'bg-blue-50/30'}`}>
                         <td className="p-4 text-center"><input type="checkbox" checked={row.selected} onChange={() => toggleSelect(row.id)} className="rounded border-stone-300 text-blue-600" /></td>
                         <td className="p-2 font-medium text-stone-700">{row.name}</td>
                         
                         {/* 图片编辑列 */}
-                        <td className="p-2">
-                          <div className="flex gap-2 items-center relative">
+                        <td className="p-2 relative">
+                          <div className="flex gap-2 items-center">
                              <input 
                                value={row.imageUrl} 
                                onChange={(e) => updateCell(row.id, 'imageUrl', e.target.value)} 
                                className="flex-1 w-full px-2 py-1 bg-stone-50 border border-stone-200 rounded focus:bg-white text-xs font-mono truncate"
                              />
-                             {/* 搜索按钮 */}
                              <button 
                                onClick={() => openSearch(row.id)}
                                className="p-1.5 bg-stone-100 rounded-lg hover:bg-blue-100 hover:text-blue-600 transition"
@@ -206,14 +206,15 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
                              >
                                <Search size={14} />
                              </button>
-                             {/* 预览按钮 + 悬浮窗 */}
                              <div className="relative group/preview">
                                <button className="p-1.5 bg-stone-100 rounded-lg hover:bg-purple-100 hover:text-purple-600 transition cursor-help">
                                  <Eye size={14} />
                                </button>
-                               {/* 悬浮图片 */}
+                               {/* 核心修复：z-[9999] + fixed/absolute 
+                                  这里使用 absolute bottom-full，并确保父容器 overflow-visible
+                               */}
                                {row.imageUrl && (
-                                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 h-36 bg-white shadow-2xl rounded-xl border border-stone-200 p-1 hidden group-hover/preview:block z-[100] animate-in fade-in zoom-in-95 pointer-events-none">
+                                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 h-48 bg-white shadow-2xl rounded-xl border border-stone-200 p-1 hidden group-hover/preview:block z-[9999] animate-in fade-in zoom-in-95 pointer-events-none">
                                    {/* eslint-disable-next-line @next/next/no-img-element */}
                                    <img src={row.imageUrl} alt="preview" className="w-full h-full object-cover rounded-lg bg-stone-100" />
                                  </div>
@@ -236,13 +237,12 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
           )}
         </div>
 
-        <div className="p-6 border-t border-stone-100 bg-white/80 backdrop-blur-xl flex justify-end gap-4">
+        <div className="p-6 border-t border-stone-100 bg-white/80 backdrop-blur-xl flex justify-end gap-4 z-20 relative">
              <button onClick={onClose} className="px-6 py-2.5 rounded-xl border border-stone-200 text-stone-600 hover:bg-stone-50 transition font-medium">取消</button>
              <button onClick={handleSave} disabled={isProcessing} className="px-8 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 shadow-xl hover:scale-105 active:scale-95 transition font-medium flex items-center gap-2 disabled:opacity-50">{isProcessing ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />} 保存更新</button>
         </div>
       </div>
 
-      {/* 嵌套的搜索模态框 */}
       {showUnsplash && (
         <UnsplashSearchModal 
           isOpen={true} 
@@ -250,7 +250,6 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
           initialQuery={searchInitialQuery}
           onSelect={(url, user) => {
             if (activeRowId) {
-              // 同时更新 图片链接 和 拍摄者
               setData(prev => prev.map(item => item.id === activeRowId ? { 
                 ...item, 
                 imageUrl: url,

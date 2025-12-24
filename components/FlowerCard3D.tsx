@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Flower } from '@prisma/client';
-import { RefreshCcw, Loader2, Share2, Sparkles, RotateCw } from 'lucide-react';
+import { RefreshCcw, Loader2, Share2, Sparkles, RotateCw, Camera, ExternalLink } from 'lucide-react';
 import { toPng } from 'html-to-image';
 
 interface FlowerCardProps {
@@ -27,7 +27,7 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
 
   const rafRef = useRef<number>(0);
 
-  // === 1. 物理动画逻辑 (保持不变) ===
+  // === 1. 物理动画逻辑 (完整保留) ===
   useEffect(() => {
     const card = cardRef.current;
     const cardInner = cardInnerRef.current;
@@ -206,7 +206,7 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
   }, []);
 
   const handleCardClick = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('button')) return;
+    if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('a')) return;
     if (!isFlipped) triggerPetalExplosion();
     if (!isSharing) setIsFlipped(!isFlipped);
   };
@@ -216,10 +216,9 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
     setTimeout(() => { onNext(); }, 600);
   };
 
-  // 修复分享：复用 AdminFlowerCard 的样式
   const handleShareClick = async (e: React.MouseEvent) => {
     e.stopPropagation(); 
-    if (!shareHiddenRef.current || isSharing) return; // 注意：这里 capture 的是隐藏的 shareHiddenRef
+    if (!shareHiddenRef.current || isSharing) return; 
     setIsSharing(true);
 
     try {
@@ -238,54 +237,29 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
 
   return (
     <>
-      {/* === 隐藏的分享卡片 (完全复刻 AdminFlowerCard 样式) === */}
-      {/* 移出屏幕外，固定宽度确保排版一致 */}
+      {/* 隐藏的分享截图模板 */}
       <div className="fixed left-[-9999px] top-0 z-[-1]" aria-hidden="true">
-        <div 
-          ref={shareHiddenRef}
-          className="w-[320px] bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden"
-        >
-          {/* 图片区 */}
+        <div ref={shareHiddenRef} className="w-[320px] bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden">
           <div className="aspect-[4/3] relative bg-stone-100">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img 
-              src={flower.imageUrl} 
-              className="w-full h-full object-cover"
-              crossOrigin="anonymous" 
-              alt={flower.name}
-            />
+            <img src={flower.imageUrl} className="w-full h-full object-cover" crossOrigin="anonymous" alt={flower.name}/>
           </div>
-          {/* 信息区 (AdminCard 样式) */}
           <div className="p-4 bg-white flex items-end gap-4">
-            {/* 左侧：花名 + 英文名 */}
             <div className="flex flex-col shrink-0 ml-2">
-              <h3 className="font-serif font-bold text-stone-800 text-xl leading-none mb-1">
-                {flower.name}
-              </h3>
-              <p className="font-serif italic text-sm text-stone-400 leading-none">
-                {flower.englishName}
-              </p>
+              <h3 className="font-serif font-bold text-stone-800 text-xl leading-none mb-1">{flower.name}</h3>
+              <p className="font-serif italic text-sm text-stone-400 leading-none">{flower.englishName}</p>
             </div>
-            {/* 分隔线 */}
             <div className="w-px h-8 bg-stone-200 shrink-0 self-center"></div>
-            {/* 右侧：花语 + 习性 */}
             <div className="flex flex-col items-end gap-1 overflow-hidden min-w-0 flex-1">
-              <p className="text-stone-500 text-xs font-mono opacity-80 text-right line-clamp-1 w-full">
-                {flower.language}
-              </p>
-              <span className="px-2 py-0.5 bg-stone-100 text-stone-600 text-[10px] rounded-md whitespace-nowrap">
-                {flower.habit}
-              </span>
+              <p className="text-stone-500 text-xs font-mono opacity-80 text-right line-clamp-1 w-full">{flower.language}</p>
+              <span className="px-2 py-0.5 bg-stone-100 text-stone-600 text-[10px] rounded-md whitespace-nowrap">{flower.habit}</span>
             </div>
           </div>
-          {/* 底部水印 (可选优化) */}
-          <div className="bg-stone-50 px-4 py-2 text-[10px] text-stone-300 text-center font-mono tracking-widest uppercase">
-              Flower Daily
-          </div>
+          <div className="bg-stone-50 px-4 py-2 text-[10px] text-stone-300 text-center font-mono tracking-widest uppercase">Flower Daily</div>
         </div>
       </div>
 
-      {/* === 可见的 3D 卡片 === */}
+      {/* 3D 卡片主体 */}
       <div ref={containerRef} className="card-container-perspective">
         <div 
           ref={cardRef}
@@ -294,7 +268,7 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
         >
           <div ref={cardInnerRef} className="card-inner">
             
-            {/* 正面 */}
+            {/* === 正面 === */}
             <div className="card-front">
               <div 
                   ref={frontImgRef} 
@@ -306,7 +280,16 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
                   <h2 className="text-white font-serif text-4xl font-bold tracking-wider drop-shadow-[0_4px_8px_rgba(0,0,0,0.6)]">
                       {flower.name}
                   </h2>
-                  <div className="w-8 h-1 bg-white/90 rounded-full mt-3 shadow-sm"></div>
+                  <div className="flex items-center justify-between w-full mt-3">
+                     <div className="w-8 h-1 bg-white/90 rounded-full shadow-sm"></div>
+                     
+                     {/* 新增：正面拍摄者信息 */}
+                     {flower.photographer && (
+                        <span className="text-[10px] text-white/70 font-medium font-mono flex items-center gap-1 backdrop-blur-sm px-2 py-1 rounded-full bg-black/20">
+                          <Camera size={10} /> {flower.photographer}
+                        </span>
+                     )}
+                  </div>
               </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none"></div>
               <div className="card-flip-hint">
@@ -314,7 +297,7 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
               </div>
             </div>
 
-            {/* 背面 */}
+            {/* === 背面 === */}
             <div className="card-back">
               <div 
                   ref={backImgRef} 
@@ -325,7 +308,6 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
               <div className="back-content">
                  <div className="flex-1 flex flex-col items-center justify-center space-y-6">
                     
-                    {/* 名字排版：同行，底部对齐，居中 */}
                     <div className="flex items-baseline justify-center gap-3 w-full border-b border-stone-100 pb-4 mb-2">
                         <h2 className="text-3xl font-serif font-bold text-stone-900">
                             {flower.name}
@@ -350,9 +332,18 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
                     <div className="bg-stone-100/80 text-stone-600 px-4 py-1.5 rounded-full text-sm font-medium border border-stone-200">
                        {flower.habit}
                     </div>
+
+                    {/* 新增：反面图片信息 */}
+                    <div className="text-[10px] text-stone-400 font-mono flex flex-col items-center gap-0.5 opacity-80">
+                        {flower.photographer && <span>Photo by {flower.photographer}</span>}
+                        <span>Image from Unsplash</span>
+                    </div>
                  </div>
 
-                 <div className="w-full grid grid-cols-5 gap-3 pt-6 border-t border-stone-200/50">
+                 {/* === 底部按钮组 (重构) === */}
+                 <div className="w-full grid grid-cols-5 gap-3 pt-4 border-t border-stone-200/50">
+                    
+                    {/* 1. 再送一朵 (占3格) */}
                     <button 
                       onClick={(e) => { e.stopPropagation(); handleNextClick(); }}
                       disabled={loading}
@@ -362,13 +353,26 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
                       <span className="font-medium">再送自己一朵</span>
                     </button>
 
+                    {/* 2. 查看原图/跳转 (占1格) */}
+                    <a 
+                      href={flower.imageUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="col-span-1 py-3 bg-white/60 text-stone-800 border border-stone-300/50 rounded-xl hover:bg-white hover:text-blue-600 active:scale-95 transition-all flex items-center justify-center shadow-sm"
+                      title="查看原图 / Unsplash"
+                    >
+                      <ExternalLink size={18} />
+                    </a>
+
+                    {/* 3. 分享 (占1格 - 减半) */}
                     <button 
                       onClick={handleShareClick}
                       disabled={isSharing}
-                      className="col-span-2 py-3 bg-white/60 text-stone-800 border border-stone-300/50 rounded-xl hover:bg-white active:scale-95 transition-all flex items-center justify-center gap-2 shadow-sm"
+                      className="col-span-1 py-3 bg-white/60 text-stone-800 border border-stone-300/50 rounded-xl hover:bg-white hover:text-purple-600 active:scale-95 transition-all flex items-center justify-center shadow-sm"
+                      title="保存图片"
                     >
                       {isSharing ? <Loader2 className="animate-spin w-4 h-4"/> : <Share2 size={18} />}
-                      <span className="font-medium">分享</span>
                     </button>
                  </div>
               </div>
