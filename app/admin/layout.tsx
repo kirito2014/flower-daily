@@ -1,8 +1,24 @@
 import Link from 'next/link';
-import { Settings, Flower, LayoutDashboard, Home, LogOut, Users, Shield, User } from 'lucide-react'; // 新增 User 图标
+import { Settings, Flower, LayoutDashboard, Home, LogOut, Users, Shield, User } from 'lucide-react';
 import { logout } from '@/app/actions/auth';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
+import HitokotoBox from '@/components/HitokotoBox'; // 引入新组件
+
+// 辅助函数：获取一言 (Server Side Fetch - 初始数据)
+async function getHitokoto() {
+  try {
+    // c=d 代表文学类，encode=text 返回纯文本
+    const res = await fetch('https://v1.hitokoto.cn/?c=d&encode=text', { 
+      next: { revalidate: 60 }, // 60秒缓存，避免频繁刷新
+      method: 'GET'
+    });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch (e) {
+    return null;
+  }
+}
 
 export default async function AdminLayout({
   children,
@@ -24,22 +40,28 @@ export default async function AdminLayout({
 
     if (user) {
       if (user.username === 'admin') {
-        // 超级管理员拥有所有权限
         allowedMenus = ['flowers', 'users', 'roles', 'settings'];
       } else if (user.role?.permissions) {
-        // 普通用户根据角色加载权限
         allowedMenus = JSON.parse(user.role.permissions);
       }
     }
   }
 
-  // 菜单配置
+  // 2. 并行获取一言初始值
+  const hitokoto = await getHitokoto();
+
   const MENU_ITEMS = [
     { code: 'flowers', label: '花卉管理', href: '/admin/flowers', icon: Flower },
     { code: 'users', label: '用户管理', href: '/admin/users', icon: Users },
     { code: 'roles', label: '角色管理', href: '/admin/roles', icon: Shield },
     { code: 'settings', label: '系统配置', href: '/admin/settings', icon: Settings },
   ];
+
+  // 格式化当前时间
+  const currentTime = new Date().toLocaleString('zh-CN', { 
+    year: 'numeric', month: '2-digit', day: '2-digit', 
+    hour: '2-digit', minute: '2-digit' 
+  });
 
   return (
     <div className="min-h-screen flex bg-stone-100">
@@ -57,7 +79,6 @@ export default async function AdminLayout({
 
           <div className="h-px bg-stone-100 my-2 mx-2"></div>
 
-          {/* 动态渲染菜单 */}
           {MENU_ITEMS.map((item) => {
             if (allowedMenus.includes(item.code)) {
               return (
@@ -78,17 +99,20 @@ export default async function AdminLayout({
       </aside>
 
       <main className="flex-1 ml-64 min-h-screen flex flex-col">
-        {/* Header 增加 gap-4 用于间距 */}
+        {/* Header */}
         <header className="sticky top-0 z-20 px-8 py-4 flex justify-end items-center bg-stone-100/80 backdrop-blur-sm gap-4">
            
-           {/* === 新增：当前用户显示 === */}
-           <div className="flex items-center gap-2 text-sm text-stone-500 bg-white px-4 py-2 rounded-full border border-stone-200 shadow-sm">
+           {/* === 改动：使用 HitokotoBox 客户端组件 === */}
+           <HitokotoBox initialText={hitokoto} />
+
+           {/* 当前用户 */}
+           <div className="flex items-center gap-2 text-sm text-stone-500 bg-white px-4 h-[38px] rounded-full border border-stone-200 shadow-sm">
              <User size={14} className="text-stone-400" />
              <span>当前用户：<span className="font-bold text-stone-700">{user?.username || '未知用户'}</span></span>
            </div>
 
            <form action={logout}>
-             <button type="submit" className="flex items-center gap-2 px-4 py-2 bg-white border border-stone-200 shadow-sm rounded-full text-stone-600 text-sm font-medium hover:text-red-600 hover:border-red-100 hover:bg-red-50 transition-all active:scale-95">
+             <button type="submit" className="flex items-center gap-2 px-4 h-[38px] bg-white border border-stone-200 shadow-sm rounded-full text-stone-600 text-sm font-medium hover:text-red-600 hover:border-red-100 hover:bg-red-50 transition-all active:scale-95">
                <LogOut size={14} />
                <span>退出登录</span>
              </button>
@@ -98,6 +122,18 @@ export default async function AdminLayout({
         <div className="flex-1 px-8 pb-8 overflow-y-auto">
           {children}
         </div>
+
+        {/* 底部版权信息 */}
+        <footer className="py-4 text-center border-t border-stone-200 bg-stone-50/50 mt-auto">
+           <div className="flex flex-col items-center justify-center gap-1 text-[10px] text-stone-400 font-mono">
+              <p>Copyright © {new Date().getFullYear()} Flower Daily Admin. All Rights Reserved.</p>
+              <div className="flex items-center gap-3 opacity-80">
+                 <span>Version 1.0.0</span>
+                 <span className="w-px h-2 bg-stone-300"></span>
+                 <span>{currentTime}</span>
+              </div>
+           </div>
+        </footer>
       </main>
     </div>
   );

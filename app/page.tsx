@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link'; // 保持 Link 组件
+import Link from 'next/link';
 import { Flower } from '@prisma/client';
 import FlowerCard3D from '@/components/FlowerCard3D';
 import { Loader2, Sparkles, Github, ExternalLink, Package } from 'lucide-react';
@@ -45,8 +45,22 @@ export default function HomePage() {
       const data = await res.json();
 
       if (data.finished) {
-        setFinishedData(data.message);
+        // === 修改：优先获取 Hitokoto，失败则使用默认值 ===
+        try {
+           // 尝试获取一言 (文学类)
+           const hitoRes = await fetch('https://v1.hitokoto.cn/?c=d&encode=text');
+           if (hitoRes.ok) {
+             const text = await hitoRes.text();
+             setFinishedData(text); // 使用一言
+           } else {
+             setFinishedData(data.message); // 回退默认
+           }
+        } catch (e) {
+           console.error("Hitokoto fetch failed", e);
+           setFinishedData(data.message); // 回退默认
+        }
         setLoading(false);
+        // ===============================================
       } else {
         const img = new Image();
         img.onload = () => {
@@ -77,7 +91,10 @@ export default function HomePage() {
     return (
       <div className="h-screen w-full bg-stone-900 flex flex-col items-center justify-center p-8 text-center text-white">
         <Sparkles className="text-yellow-400 w-12 h-12 mb-6 animate-pulse" />
-        <h1 className="text-2xl font-serif mb-8">{finishedData}</h1>
+        {/* 显示结语 (Hitokoto 或 默认) */}
+        <h1 className="text-2xl font-serif mb-8 max-w-2xl leading-relaxed italic">
+          “{finishedData}”
+        </h1>
         <button 
           onClick={() => { setSeenIds([]); setFinishedData(null); setViewState('intro'); }}
           className="text-stone-400 text-sm underline hover:text-white transition"
@@ -95,7 +112,6 @@ export default function HomePage() {
   return (
     <div className="h-screen w-full bg-[#f5f5f5] flex items-center justify-center overflow-hidden relative">
       
-      {/* 背景大字 */}
       <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none">
          <span className="text-[25vw] font-serif font-bold text-black">FLOWER</span>
       </div>
@@ -148,11 +164,9 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* === Footer: 仅在 viewState === 'card' 时显示 === */}
       {viewState === 'card' && (
         <footer className="absolute bottom-6 w-full flex justify-center items-center text-xs text-stone-400 z-0 pointer-events-none animate-in fade-in duration-1000">
           <div className="flex items-center gap-4 bg-white/50 backdrop-blur-sm px-4 py-2 rounded-full border border-stone-200/50 shadow-sm pointer-events-auto transition-opacity hover:opacity-100 opacity-60">
-              {/* 保持 Link 功能 */}
               <Link 
                 href="/login" 
                 className="font-serif font-medium text-stone-500 hover:text-stone-800 transition-colors cursor-pointer"
