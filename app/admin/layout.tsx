@@ -126,9 +126,9 @@ export default async function AdminLayout({
         {/* 底部版权信息 */}
         <footer className="py-4 text-center border-t border-stone-200 bg-stone-50/50 mt-auto">
            <div className="flex flex-col items-center justify-center gap-1 text-[10px] text-stone-400 font-mono">
-              <p>Copyright © {new Date().getFullYear()} Flower Daily Admin. All Rights Reserved.</p>
+              <p>Copyright © {new Date().getFullYear()} Flower Daily. All Rights Reserved.</p>
               <div className="flex items-center gap-3 opacity-80">
-                 <span>Version 1.0.0</span>
+                 <span>Version 1.1.0</span>
                  <span className="w-px h-2 bg-stone-300"></span>
                  <span>{currentTime}</span>
               </div>

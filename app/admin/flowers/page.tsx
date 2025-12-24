@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { getFlowers, deleteFlower } from '@/app/actions/admin';
 import FlowerForm from '@/components/FlowerForm';
 import AdminFlowerCard from '@/components/AdminFlowerCard';
+import AdminFlowerListItem from '@/components/AdminFlowerListItem'; // 引入新组件
 import { Flower } from '@prisma/client';
 import { 
   Search, 
@@ -13,13 +14,18 @@ import {
   SortAsc, 
   Calendar, 
   Clock, 
-  X 
+  X,
+  LayoutGrid, // 四方格图标
+  StretchHorizontal // 两长条图标
 } from 'lucide-react';
 
 export default function AdminFlowersPage() {
   const [flowers, setFlowers] = useState<Flower[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  // === 新增：视图模式状态 ===
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const [searchText, setSearchText] = useState('');
   const [filterText, setFilterText] = useState('');
@@ -79,8 +85,8 @@ export default function AdminFlowersPage() {
         case 'created_desc': return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         case 'created_asc': return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
         case 'updated_desc': return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-        case 'name_asc': return a.name.localeCompare(b.name, 'zh-CN'); // A-Z
-        case 'name_desc': return b.name.localeCompare(a.name, 'zh-CN'); // Z-A (新增)
+        case 'name_asc': return a.name.localeCompare(b.name, 'zh-CN');
+        case 'name_desc': return b.name.localeCompare(a.name, 'zh-CN');
         default: return 0;
       }
     });
@@ -154,23 +160,44 @@ export default function AdminFlowersPage() {
           </div>
         </div>
 
-        {/* 右侧：排序 */}
-        <div className="relative min-w-[180px]">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 pointer-events-none">
-             {sortKey.includes('name') ? <SortAsc size={16}/> : (sortKey.includes('updated') ? <Clock size={16}/> : <Calendar size={16}/>)}
-          </div>
-          <select 
-            value={sortKey} 
-            onChange={(e) => setSortKey(e.target.value)}
-            className="w-full pl-9 pr-8 py-2.5 bg-white border border-stone-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-stone-200 cursor-pointer appearance-none shadow-sm text-stone-700 font-medium"
-          >
-            <option value="created_desc">按添加时间 (最新)</option>
-            <option value="created_asc">按添加时间 (最早)</option>
-            <option value="updated_desc">按修改时间 (最近)</option>
-            <option value="name_asc">按名称排序 (A-Z)</option>
-            <option value="name_desc">按名称排序 (Z-A)</option> {/* 新增 */}
-          </select>
-          <ArrowUpDown className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" size={14} />
+        {/* 右侧：排序与视图切换 */}
+        <div className="flex items-center gap-3">
+            
+            {/* 1. 排序下拉 */}
+            <div className="relative min-w-[180px]">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 pointer-events-none">
+                {sortKey.includes('name') ? <SortAsc size={16}/> : (sortKey.includes('updated') ? <Clock size={16}/> : <Calendar size={16}/>)}
+              </div>
+              <select 
+                value={sortKey} 
+                onChange={(e) => setSortKey(e.target.value)}
+                className="w-full pl-9 pr-8 py-2.5 bg-white border border-stone-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-stone-200 cursor-pointer appearance-none shadow-sm text-stone-700 font-medium"
+              >
+                <option value="created_desc">按添加时间 (最新)</option>
+                <option value="created_asc">按添加时间 (最早)</option>
+                <option value="updated_desc">按修改时间 (最近)</option>
+                <option value="name_asc">按名称排序 (A-Z)</option>
+                <option value="name_desc">按名称排序 (Z-A)</option>
+              </select>
+              <ArrowUpDown className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" size={14} />
+            </div>
+
+            {/* 2. 视图切换按钮 (圆角矩形，悬浮动画) */}
+            <button
+              onClick={() => setViewMode(prev => prev === 'grid' ? 'list' : 'grid')}
+              className="group relative w-10 h-10 flex items-center justify-center bg-white border border-stone-200 rounded-xl shadow-sm hover:border-blue-300 hover:shadow-md hover:bg-blue-50 transition-all active:scale-95"
+              title={viewMode === 'grid' ? '切换到列表视图' : '切换到网格视图'}
+            >
+              {/* 默认图标 (绝对定位) */}
+              <div className={`absolute transition-all duration-300 transform ${viewMode === 'grid' ? 'opacity-100 scale-100 group-hover:opacity-0 group-hover:scale-75' : 'opacity-0 scale-75'}`}>
+                 <LayoutGrid size={18} className="text-stone-500" />
+              </div>
+
+              {/* 悬浮/激活图标 (绝对定位) */}
+              <div className={`absolute transition-all duration-300 transform ${viewMode === 'list' ? 'opacity-100 scale-100' : 'opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100'}`}>
+                 <StretchHorizontal size={18} className="text-blue-500" />
+              </div>
+            </button>
         </div>
       </div>
 
@@ -180,18 +207,39 @@ export default function AdminFlowersPage() {
           <p className="text-sm">正在加载花圃...</p>
         </div>
       ) : processedFlowers.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        
+        // 根据 viewMode 切换 Grid 布局
+        // viewMode === 'list' 时，强制 grid-cols-1，让 AdminFlowerListItem 占满宽度
+        <div className={`
+            grid gap-6
+            ${viewMode === 'grid' 
+                ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' 
+                : 'grid-cols-1'
+            }
+        `}>
           {processedFlowers.map((flower, index) => (
-            <AdminFlowerCard 
-              key={flower.id} 
-              index={index}
-              flower={flower} 
-              onDelete={handleDelete}
-              onUpdate={loadFlowers}
-              isEditing={editingId === flower.id}
-              onToggleEdit={() => setEditingId(current => current === flower.id ? null : flower.id)}
-              onCloseEdit={() => setEditingId(null)}
-            />
+             viewMode === 'grid' ? (
+                <AdminFlowerCard 
+                    key={flower.id} 
+                    index={index}
+                    flower={flower} 
+                    onDelete={handleDelete}
+                    onUpdate={loadFlowers}
+                    isEditing={editingId === flower.id}
+                    onToggleEdit={() => setEditingId(current => current === flower.id ? null : flower.id)}
+                    onCloseEdit={() => setEditingId(null)}
+                />
+             ) : (
+                <AdminFlowerListItem 
+                    key={flower.id}
+                    flower={flower}
+                    onDelete={handleDelete}
+                    onUpdate={loadFlowers}
+                    isEditing={editingId === flower.id}
+                    onToggleEdit={() => setEditingId(current => current === flower.id ? null : flower.id)}
+                    onCloseEdit={() => setEditingId(null)}
+                />
+             )
           ))}
         </div>
       ) : (

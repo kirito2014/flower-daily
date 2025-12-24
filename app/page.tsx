@@ -106,8 +106,8 @@ export default function HomePage() {
   }
 
   const siteName = process.env.NEXT_PUBLIC_SITE_NAME || 'Flower Daily';
-  const version = process.env.NEXT_PUBLIC_SITE_VERSION || 'v1.0.0';
-  const repoUrl = process.env.NEXT_PUBLIC_GITHUB_REPO || 'https://github.com';
+  const version = process.env.NEXT_PUBLIC_SITE_VERSION || 'v1.1.0';
+  const repoUrl = process.env.NEXT_PUBLIC_GITHUB_REPO || 'https://github.com/kirito2014/flower-daily';
 
   return (
     <div className="h-screen w-full bg-[#f5f5f5] flex items-center justify-center overflow-hidden relative">
