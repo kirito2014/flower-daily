@@ -142,7 +142,7 @@ export default function AdminFlowerListItem({
                   编辑花卉信息
                 </h4>
                 <button onClick={onCloseEdit} className="text-stone-400 hover:text-stone-600 p-1 rounded-full hover:bg-stone-100">
-                    <X size={16} />
+                    <X size={16} />  
                 </button>
              </div>
 
@@ -164,7 +164,7 @@ export default function AdminFlowerListItem({
             <div className="text-5xl mb-4 animate-pulse grayscale transition-all duration-1000 select-none">
               🌸
             </div>
-            <h3 className="text-stone-800 font-bold text-lg mb-8">确定删除花朵吗？</h3>
+            <h3 className="text-stone-800 font-bold text-lg mb-8">确定删除这朵花吗？</h3>
             <div className="flex gap-4 w-full">
                <button 
                  onClick={() => setShowDeleteConfirm(false)} 
