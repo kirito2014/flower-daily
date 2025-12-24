@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, X, Loader2, Download } from 'lucide-react';
 import { searchUnsplashImages } from '@/app/actions/image';
 
@@ -9,6 +9,7 @@ interface UnsplashImage {
   thumb: string;
   full: string;
   photographer: string;
+  downloadLocation?: string;
 }
 
 interface UnsplashSearchModalProps {
@@ -24,13 +25,23 @@ export default function UnsplashSearchModal({ isOpen, onClose, onSelect, initial
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // 初始搜索 (如果打开时有默认词，可选自动搜索，这里为了节省API额度设为手动)
-  const handleSearch = async () => {
-    if (!query.trim()) return;
+  // 核心修复：当 initialQuery 变化或弹窗打开时，同步更新搜索框内容
+  useEffect(() => {
+    if (isOpen) {
+      setQuery(initialQuery);
+      // 可选：如果想打开自动搜索，可在此处调用 handleSearch
+      // if (initialQuery) handleSearch(initialQuery);
+    }
+  }, [isOpen, initialQuery]);
+
+  const handleSearch = async (overrideQuery?: string) => {
+    const q = overrideQuery || query;
+    if (!q.trim()) return;
+    
     setLoading(true);
     setHasSearched(true);
     try {
-      const images = await searchUnsplashImages(query);
+      const images = await searchUnsplashImages(q);
       setResults(images);
     } catch (error) {
       console.error(error);
@@ -44,73 +55,86 @@ export default function UnsplashSearchModal({ isOpen, onClose, onSelect, initial
 
   return (
     <div className="fixed inset-0 z-[1050] flex items-center justify-center bg-black/40 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-white w-[90%] max-w-4xl h-[80vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+      {/* 修改：宽度调整为 max-w-7xl，高度 h-[90vh]，提供更大的视野 */}
+      <div className="bg-white w-[95%] max-w-7xl h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-stone-200">
         
         {/* Header */}
-        <div className="p-6 border-b border-stone-100 flex justify-between items-center bg-white">
+        <div className="px-8 py-5 border-b border-stone-100 flex justify-between items-center bg-white">
           <h3 className="text-xl font-serif font-bold text-stone-800 flex items-center gap-2">
-            <Search size={20} className="text-stone-400" />
-            Unsplash 图片搜索
+            <Search size={22} className="text-purple-600" />
+            Unsplash 图库
           </h3>
-          <button onClick={onClose} className="p-2 hover:bg-stone-100 rounded-full transition"><X size={20} /></button>
+          <button onClick={onClose} className="p-2 hover:bg-stone-100 rounded-full transition"><X size={22} /></button>
         </div>
 
         {/* Search Bar */}
-        <div className="p-4 bg-stone-50 border-b border-stone-100 flex gap-2">
-          <input 
-            type="text" 
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="输入英文关键词 (如: Red Rose)"
-            className="flex-1 px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-stone-200 font-medium"
-          />
+        <div className="p-6 bg-stone-50 border-b border-stone-100 flex gap-3">
+          <div className="relative flex-1">
+            <input 
+              type="text" 
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              placeholder="输入英文关键词 (如: Red Rose)"
+              className="w-full pl-5 pr-4 py-3 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition text-lg"
+              autoFocus
+            />
+          </div>
           <button 
-            onClick={handleSearch}
+            onClick={() => handleSearch()}
             disabled={loading}
-            className="px-6 py-2.5 bg-black text-white rounded-xl hover:bg-stone-800 transition disabled:opacity-50"
+            className="px-8 py-3 bg-stone-900 text-white rounded-xl hover:bg-stone-800 transition disabled:opacity-50 font-bold text-base flex items-center gap-2"
           >
-            {loading ? <Loader2 className="animate-spin" /> : '搜索'}
+            {loading ? <Loader2 className="animate-spin" /> : '搜索图片'}
           </button>
         </div>
 
         {/* Results Grid */}
-        <div className="flex-1 overflow-y-auto p-6 bg-stone-50/50">
+        <div className="flex-1 overflow-y-auto p-8 bg-stone-50/50">
           {loading ? (
-            <div className="h-full flex items-center justify-center text-stone-400">
-              <Loader2 className="animate-spin mb-2" /> 正在寻找灵感...
+            <div className="h-full flex flex-col items-center justify-center text-stone-400 gap-3">
+              <Loader2 className="animate-spin w-8 h-8 text-purple-500" /> 
+              <p>正在连接 Unsplash...</p>
             </div>
           ) : results.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            // 修改：Grid 布局调整，大屏显示 5 列
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
               {results.map((img) => (
                 <div 
                   key={img.id} 
-                  className="group relative aspect-[3/4] rounded-xl overflow-hidden cursor-pointer shadow-sm hover:shadow-md transition bg-stone-200"
+                  className="group relative aspect-[3/4] rounded-2xl overflow-hidden cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 bg-stone-200"
                   onClick={() => {
                     onSelect(img.full, img.photographer);
                     onClose();
                   }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={img.thumb} alt="Unsplash" className="w-full h-full object-cover transition duration-500 group-hover:scale-110" />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                  <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                    Photo by {img.photographer}
+                  <img src={img.thumb} alt="Unsplash" className="w-full h-full object-cover" />
+                  
+                  {/* Hover Overlay */}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
+                  
+                  {/* Info Tag */}
+                  <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-y-2 group-hover:translate-y-0">
+                    <p className="text-xs font-medium truncate">@{img.photographer}</p>
                   </div>
-                  <div className="absolute top-2 right-2 bg-white/90 text-stone-800 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
-                    <Download size={14} />
+                  
+                  {/* Select Icon */}
+                  <div className="absolute top-3 right-3 bg-white text-stone-900 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100 shadow-lg">
+                    <Download size={16} />
                   </div>
                 </div>
               ))}
             </div>
           ) : hasSearched ? (
             <div className="h-full flex flex-col items-center justify-center text-stone-400">
-              <p>未找到相关图片</p>
+              <p className="text-lg">未找到相关图片，试着换个关键词？</p>
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-stone-400">
-              <Search size={48} className="mb-4 opacity-20" />
-              <p>输入关键词开始搜索</p>
+            <div className="h-full flex flex-col items-center justify-center text-stone-300 select-none">
+              <Search size={64} className="mb-4 opacity-20" />
+              <p className="text-lg font-medium">输入英文关键词开始探索</p>
+              <p className="text-sm mt-2 opacity-60">例如: "White Lily", "Spring Garden"</p>
             </div>
           )}
         </div>

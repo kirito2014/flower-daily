@@ -16,12 +16,12 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
   const [aiLoading, setAiLoading] = useState(false);
   const [showUnsplash, setShowUnsplash] = useState(false);
   
-  // === 状态管理 (受控组件模式，解决 null 报错) ===
+  // 状态管理
   const [name, setName] = useState(flower?.name || '');
   const [englishName, setEnglishName] = useState(flower?.englishName || '');
-  const [alias, setAlias] = useState(flower?.alias || ''); // 新增：别名
+  const [alias, setAlias] = useState(flower?.alias || '');
   const [imageUrl, setImageUrl] = useState(flower?.imageUrl || '');
-  const [photographer, setPhotographer] = useState(flower?.photographer || ''); // 新增：拍摄者
+  const [photographer, setPhotographer] = useState(flower?.photographer || '');
   const [language, setLanguage] = useState(flower?.language || '');
   const [habit, setHabit] = useState(flower?.habit || '');
 
@@ -43,7 +43,7 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
         await updateFlower(flower.id, formData);
       } else {
         await createFlower(formData);
-        // 新增成功后重置表单
+        // 重置表单
         setName(''); setEnglishName(''); setAlias(''); 
         setImageUrl(''); setPhotographer(''); 
         setLanguage(''); setHabit('');
@@ -51,7 +51,7 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
       onSuccess();
     } catch (error) {
       console.error(error);
-      alert('操作失败，请重试');
+      alert('操作失败');
     } finally {
       setLoading(false);
     }
@@ -62,14 +62,13 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
     setAiLoading(true);
     try {
       const data = await generateFlowerContent(name);
-      // 仅当字段为空时补充，或根据需要覆盖
       if (data.englishName) setEnglishName(data.englishName);
       if (data.language) setLanguage(data.language);
       if (data.habit) setHabit(data.habit);
-      if (data.alias) setAlias(data.alias); 
+      if (data.alias) setAlias(data.alias);
     } catch (error) {
-      console.error('AI Error:', error);
-      alert('AI 生成失败，请检查系统配置');
+      console.error(error);
+      alert('AI 生成失败，请检查配置');
     } finally {
       setAiLoading(false);
     }
@@ -79,7 +78,7 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
     <>
       <form onSubmit={handleSubmit} className="space-y-5">
         
-        {/* === 第一行：花名 + AI 按钮 === */}
+        {/* 花名 + AI */}
         <div className="flex gap-3 items-end">
           <div className="flex-1 space-y-1.5">
             <label className="text-xs font-bold text-stone-500 uppercase tracking-wider ml-1">花卉名称</label>
@@ -96,15 +95,14 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
             type="button"
             onClick={handleAIGenerate}
             disabled={aiLoading || !name}
-            className="mb-[1px] px-5 py-2.5 bg-purple-50 text-purple-600 border border-purple-100 rounded-xl hover:bg-purple-100 hover:border-purple-200 transition disabled:opacity-50 flex items-center gap-2 font-bold h-[46px] shadow-sm"
-            title="自动生成信息"
+            className="mb-[1px] px-5 py-2.5 bg-purple-50 text-purple-600 border border-purple-100 rounded-xl hover:bg-purple-100 hover:border-purple-200 transition disabled:opacity-50 flex items-center gap-2 font-bold h-[46px]"
           >
             {aiLoading ? <Loader2 className="animate-spin" size={18} /> : <Sparkles size={18} />}
-            <span className="text-sm hidden sm:inline">AI 补全</span>
+            <span className="hidden sm:inline">AI 补全</span>
           </button>
         </div>
 
-        {/* === 第二行：英文名 + 别名 === */}
+        {/* 英文名 + 别名 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-stone-500 uppercase tracking-wider ml-1">英文名称</label>
@@ -128,7 +126,7 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
           </div>
         </div>
 
-        {/* === 第三行：图片链接 + Unsplash + 拍摄者 === */}
+        {/* 图片链接 + Unsplash + 拍摄者 */}
         <div className="space-y-1.5">
           <label className="text-xs font-bold text-stone-500 uppercase tracking-wider ml-1">图片来源</label>
           <div className="flex flex-col sm:flex-row gap-3">
@@ -166,7 +164,7 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
           </div>
         </div>
 
-        {/* === 第四行：花语 === */}
+        {/* 花语 */}
         <div className="space-y-1.5">
           <label className="text-xs font-bold text-stone-500 uppercase tracking-wider ml-1">花语</label>
           <input 
@@ -179,7 +177,7 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
           />
         </div>
 
-        {/* === 第五行：习性 === */}
+        {/* 习性 */}
         <div className="space-y-1.5">
           <label className="text-xs font-bold text-stone-500 uppercase tracking-wider ml-1">生长习性</label>
           <input 
@@ -192,7 +190,6 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
           />
         </div>
 
-        {/* === 提交按钮 === */}
         <button 
           type="submit" 
           disabled={loading}
@@ -203,11 +200,12 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
         </button>
       </form>
 
-      {/* === Unsplash 搜索弹窗 === */}
+      {/* Unsplash 弹窗：修复 auto-fill，使用 state 传递 */}
       <UnsplashSearchModal 
         isOpen={showUnsplash}
         onClose={() => setShowUnsplash(false)}
-        initialQuery={englishName || name || ''} // 优先使用英文名搜索
+        // 核心修复：这里直接传当前的 state，配合 Modal 内的 useEffect 实现同步
+        initialQuery={englishName || name || ''} 
         onSelect={(url, user) => {
           setImageUrl(url);
           setPhotographer(user);

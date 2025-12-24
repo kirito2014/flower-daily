@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { Flower } from '@prisma/client';
-import { X, Check, Loader2, Sparkles, Trash2, Save, RefreshCw } from 'lucide-react';
+import { X, Check, Loader2, Sparkles, Trash2, Save, RefreshCw, Search, Eye } from 'lucide-react';
 import { generateFlowerContent, batchUpdateFlowers, deleteFlower, getFlowers } from '@/app/actions/admin';
+import UnsplashSearchModal from '@/components/UnsplashSearchModal';
 
 interface UpdateData extends Flower {
   selected: boolean;
@@ -21,7 +22,11 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // 每次打开时加载最新数据
+  // Unsplash 相关状态
+  const [showUnsplash, setShowUnsplash] = useState(false);
+  const [activeRowId, setActiveRowId] = useState<string | null>(null);
+  const [hoverImage, setHoverImage] = useState<string | null>(null); // 预览图片的URL
+
   useEffect(() => {
     if (isOpen) {
       loadData();
@@ -32,7 +37,6 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
     setIsLoadingData(true);
     try {
       const flowers = await getFlowers();
-      // 初始化数据，处理可能的 null 值
       setData(flowers.map(f => ({ 
         ...f, 
         englishName: f.englishName || '',
@@ -61,7 +65,6 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
     setData(prev => prev.map(item => ({ ...item, selected: !allSelected })));
   };
 
-  // 批量删除
   const handleDeleteSelected = async () => {
     const selectedIds = data.filter(i => i.selected).map(i => i.id);
     if (selectedIds.length === 0) return;
@@ -82,20 +85,17 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
     }
   };
 
-  // AI 批量更新
   const handleAIFill = async () => {
     const targets = data.filter(item => item.selected);
     if (targets.length === 0) return alert('请先勾选需要更新的数据行');
 
     setIsProcessing(true);
-    
     for (const item of targets) {
       setData(prev => prev.map(p => p.id === item.id ? { ...p, status: 'loading' } : p));
       try {
         const aiData = await generateFlowerContent(item.name);
         setData(prev => prev.map(p => p.id === item.id ? {
           ...p,
-          // 仅填充空值或增强现有值
           englishName: p.englishName || aiData.englishName || '',
           language: p.language || aiData.language || '',
           habit: p.habit || aiData.habit || '',
@@ -109,7 +109,6 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
     setIsProcessing(false);
   };
 
-  // 批量保存
   const handleSave = async () => {
     const targets = data.filter(item => item.selected);
     if (targets.length === 0) return alert('请勾选要保存的行');
@@ -126,11 +125,21 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
     }
   };
 
+  // 打开搜索框
+  const openSearch = (id: string) => {
+    setActiveRowId(id);
+    setShowUnsplash(true);
+  };
+
+  // 获取当前正在编辑行的英文名，用于搜索初始值
+  const activeRow = data.find(item => item.id === activeRowId);
+  const searchInitialQuery = activeRow ? (activeRow.englishName || activeRow.name) : '';
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/30 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-white/95 w-[95%] max-w-7xl h-[85vh] rounded-3xl shadow-2xl border border-white/50 flex flex-col overflow-hidden">
+      <div className="bg-white/95 w-[95%] max-w-[90rem] h-[90vh] rounded-3xl shadow-2xl border border-white/50 flex flex-col overflow-hidden relative">
         
         <div className="px-8 py-6 border-b border-stone-100 flex justify-between items-center bg-white/50 backdrop-blur-xl">
           <div>
@@ -138,7 +147,7 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
               <RefreshCw className="text-purple-600" />
               批量更新存量数据
             </h2>
-            <p className="text-stone-500 text-xs mt-1">勾选数据进行 AI 修复、补充别名或批量删除</p>
+            <p className="text-stone-500 text-xs mt-1">支持图片搜索、悬浮预览、AI 修复等操作</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-stone-100 rounded-full transition-colors"><X className="text-stone-500" /></button>
         </div>
@@ -149,7 +158,7 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
                <Loader2 className="animate-spin" /> 加载数据中...
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-4 pb-20">
               <div className="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border border-stone-100 sticky top-0 z-10">
                 <div className="flex items-center gap-4 px-2">
                   <span className="text-sm font-bold text-stone-700">共 {data.length} 条</span>
@@ -161,29 +170,61 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
+              <div className="bg-white rounded-2xl border border-stone-200 overflow-visible shadow-sm">
                 <table className="w-full text-sm text-left">
-                  <thead className="bg-stone-50 text-stone-500 font-medium">
+                  <thead className="bg-stone-50 text-stone-500 font-medium sticky top-0 z-20">
                     <tr>
                       <th className="p-4 w-12 text-center"><input type="checkbox" onChange={toggleSelectAll} className="rounded border-stone-300 text-blue-600" /></th>
                       <th className="p-4 w-[10%]">花名</th>
+                      <th className="p-4 w-[25%]">图片 / 搜索 / 预览</th>
                       <th className="p-4 w-[12%]">英文名</th>
-                      <th className="p-4 w-[15%]">别名</th>
-                      <th className="p-4 w-[20%]">花语</th>
-                      <th className="p-4 w-[15%]">习性</th>
+                      <th className="p-4 w-[12%]">别名</th>
+                      <th className="p-4 w-[15%]">花语</th>
                       <th className="p-4 w-[10%]">拍摄者</th>
                       <th className="p-4 w-10">状态</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-100">
                     {data.map((row) => (
-                      <tr key={row.id} className={`hover:bg-stone-50/50 transition ${!row.selected ? 'opacity-80' : 'bg-blue-50/30'}`}>
+                      <tr key={row.id} className={`hover:bg-stone-50/50 transition ${!row.selected ? 'opacity-90' : 'bg-blue-50/30'}`}>
                         <td className="p-4 text-center"><input type="checkbox" checked={row.selected} onChange={() => toggleSelect(row.id)} className="rounded border-stone-300 text-blue-600" /></td>
                         <td className="p-2 font-medium text-stone-700">{row.name}</td>
+                        
+                        {/* 图片编辑列 */}
+                        <td className="p-2">
+                          <div className="flex gap-2 items-center relative">
+                             <input 
+                               value={row.imageUrl} 
+                               onChange={(e) => updateCell(row.id, 'imageUrl', e.target.value)} 
+                               className="flex-1 w-full px-2 py-1 bg-stone-50 border border-stone-200 rounded focus:bg-white text-xs font-mono truncate"
+                             />
+                             {/* 搜索按钮 */}
+                             <button 
+                               onClick={() => openSearch(row.id)}
+                               className="p-1.5 bg-stone-100 rounded-lg hover:bg-blue-100 hover:text-blue-600 transition"
+                               title="搜索替换"
+                             >
+                               <Search size={14} />
+                             </button>
+                             {/* 预览按钮 + 悬浮窗 */}
+                             <div className="relative group/preview">
+                               <button className="p-1.5 bg-stone-100 rounded-lg hover:bg-purple-100 hover:text-purple-600 transition cursor-help">
+                                 <Eye size={14} />
+                               </button>
+                               {/* 悬浮图片 */}
+                               {row.imageUrl && (
+                                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 h-36 bg-white shadow-2xl rounded-xl border border-stone-200 p-1 hidden group-hover/preview:block z-[100] animate-in fade-in zoom-in-95 pointer-events-none">
+                                   {/* eslint-disable-next-line @next/next/no-img-element */}
+                                   <img src={row.imageUrl} alt="preview" className="w-full h-full object-cover rounded-lg bg-stone-100" />
+                                 </div>
+                               )}
+                             </div>
+                          </div>
+                        </td>
+
                         <td className="p-2"><input value={row.englishName || ''} onChange={(e) => updateCell(row.id, 'englishName', e.target.value)} className="w-full px-2 py-1 bg-transparent border border-transparent hover:border-stone-200 rounded focus:bg-white transition italic" /></td>
                         <td className="p-2"><input value={row.alias || ''} onChange={(e) => updateCell(row.id, 'alias', e.target.value)} className="w-full px-2 py-1 bg-transparent border border-transparent hover:border-stone-200 rounded focus:bg-white transition text-xs" /></td>
                         <td className="p-2"><input value={row.language || ''} onChange={(e) => updateCell(row.id, 'language', e.target.value)} className="w-full px-2 py-1 bg-transparent border border-transparent hover:border-stone-200 rounded focus:bg-white transition" /></td>
-                        <td className="p-2"><input value={row.habit || ''} onChange={(e) => updateCell(row.id, 'habit', e.target.value)} className="w-full px-2 py-1 bg-transparent border border-transparent hover:border-stone-200 rounded focus:bg-white transition" /></td>
                         <td className="p-2"><input value={row.photographer || ''} onChange={(e) => updateCell(row.id, 'photographer', e.target.value)} className="w-full px-2 py-1 bg-transparent border border-transparent hover:border-stone-200 rounded focus:bg-white transition text-xs" /></td>
                         <td className="p-4 text-center">{row.status === 'loading' && <Loader2 className="animate-spin text-purple-500" size={16} />}{row.status === 'success' && <Check className="text-green-500" size={16} />}{row.status === 'error' && <X className="text-red-500" size={16} />}</td>
                       </tr>
@@ -200,6 +241,25 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
              <button onClick={handleSave} disabled={isProcessing} className="px-8 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 shadow-xl hover:scale-105 active:scale-95 transition font-medium flex items-center gap-2 disabled:opacity-50">{isProcessing ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />} 保存更新</button>
         </div>
       </div>
+
+      {/* 嵌套的搜索模态框 */}
+      {showUnsplash && (
+        <UnsplashSearchModal 
+          isOpen={true} 
+          onClose={() => setShowUnsplash(false)} 
+          initialQuery={searchInitialQuery}
+          onSelect={(url, user) => {
+            if (activeRowId) {
+              // 同时更新 图片链接 和 拍摄者
+              setData(prev => prev.map(item => item.id === activeRowId ? { 
+                ...item, 
+                imageUrl: url,
+                photographer: user
+              } : item));
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
