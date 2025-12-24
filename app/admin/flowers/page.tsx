@@ -5,6 +5,7 @@ import { getFlowers, deleteFlower } from '@/app/actions/admin';
 import FlowerForm from '@/components/FlowerForm';
 import AdminFlowerCard from '@/components/AdminFlowerCard';
 import AdminFlowerListItem from '@/components/AdminFlowerListItem';
+import BatchImportModal from '@/components/BatchImportModal'; // 引入新组件
 import { Flower } from '@prisma/client';
 import { 
   Search, 
@@ -16,7 +17,8 @@ import {
   Clock, 
   X,
   LayoutGrid, 
-  StretchHorizontal 
+  StretchHorizontal,
+  UploadCloud // 导入图标
 } from 'lucide-react';
 
 export default function AdminFlowersPage() {
@@ -26,6 +28,8 @@ export default function AdminFlowersPage() {
 
   // 视图模式状态
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  // 导入模态框状态
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   const [searchText, setSearchText] = useState('');
   const [filterText, setFilterText] = useState('');
@@ -97,8 +101,8 @@ export default function AdminFlowersPage() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div>
-        <h2 className="text-2xl font-serif font-bold text-stone-800">花卉管理</h2>
-        <p className="text-stone-500 text-sm mt-1">录入新的花卉信息，或管理已有的花卉卡片。</p>
+        <h2 className="text-2xl font-serif font-bold text-stone-800 ">花卉管理</h2>
+        <p className="text-stone-500 font-seriftext-sm mt-1 ">录入新的花卉信息，或管理已有的花卉卡片。</p>
       </div>
 
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
@@ -158,7 +162,7 @@ export default function AdminFlowersPage() {
           </div>
         </div>
 
-        {/* 右侧：排序与视图切换 */}
+        {/* 右侧：排序 / 导入 / 视图切换 */}
         <div className="flex items-center gap-3">
             
             <div className="relative min-w-[180px]">
@@ -179,32 +183,46 @@ export default function AdminFlowersPage() {
               <ArrowUpDown className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" size={14} />
             </div>
 
-            {/* 2. 视图切换按钮 (双向动画修复) */}
+            {/* === 新增：批量导入按钮 (磨砂悬浮风格) === */}
+            <button
+              onClick={() => setIsImportOpen(true)}
+              className="group relative w-10 h-10 flex items-center justify-center bg-white border border-stone-200 rounded-xl shadow-sm hover:border-green-300 hover:shadow-md hover:bg-green-50 transition-all active:scale-95"
+              title="批量导入 Excel"
+            >
+              <UploadCloud size={18} className="text-stone-500 group-hover:text-green-600 transition-colors" />
+            </button>
+
+            {/* 视图切换按钮 */}
             <button
               onClick={() => setViewMode(prev => prev === 'grid' ? 'list' : 'grid')}
               className="group relative w-10 h-10 flex items-center justify-center bg-white border border-stone-200 rounded-xl shadow-sm hover:border-blue-300 hover:shadow-md hover:bg-blue-50 transition-all active:scale-95 overflow-hidden"
               title={viewMode === 'grid' ? '切换到列表视图' : '切换到网格视图'}
             >
-              {/* Grid 图标 (四方格) */}
               <div className={`absolute transition-all duration-300 transform ${
                   viewMode === 'grid' 
-                  ? 'opacity-100 scale-100 group-hover:opacity-0 group-hover:scale-75' // 当前 Grid：显示，悬浮隐藏
-                  : 'opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100' // 当前 List：隐藏，悬浮显示(提示切回Grid)
+                  ? 'opacity-100 scale-100 group-hover:opacity-0 group-hover:scale-75' 
+                  : 'opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100'
               }`}>
                  <LayoutGrid size={18} className="text-stone-500" />
               </div>
 
-              {/* List 图标 (两长条) */}
               <div className={`absolute transition-all duration-300 transform ${
                   viewMode === 'list' 
-                  ? 'opacity-100 scale-100 group-hover:opacity-0 group-hover:scale-75' // 当前 List：显示，悬浮隐藏
-                  : 'opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100' // 当前 Grid：隐藏，悬浮显示(提示切回List)
+                  ? 'opacity-100 scale-100 group-hover:opacity-0 group-hover:scale-75' 
+                  : 'opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100' 
               }`}>
                  <StretchHorizontal size={18} className="text-blue-500" />
               </div>
             </button>
         </div>
       </div>
+
+      {/* === 批量导入模态框 === */}
+      <BatchImportModal 
+        isOpen={isImportOpen} 
+        onClose={() => setIsImportOpen(false)} 
+        onSuccess={loadFlowers} 
+      />
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 text-stone-400 gap-3">
