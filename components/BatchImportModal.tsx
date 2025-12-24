@@ -30,9 +30,10 @@ export default function BatchImportModal({ isOpen, onClose, onSuccess }: BatchIm
   const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Unsplash 相关
+  // Unsplash & Preview
   const [showUnsplash, setShowUnsplash] = useState(false);
   const [activeRowId, setActiveRowId] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ x: number, y: number, url: string } | null>(null);
 
   const handleDownloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
@@ -141,6 +142,13 @@ export default function BatchImportModal({ isOpen, onClose, onSuccess }: BatchIm
     setShowUnsplash(true);
   };
 
+  // 预览事件
+  const handleMouseEnterPreview = (e: React.MouseEvent, url: string) => {
+    if (!url) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setPreview({ x: rect.left + rect.width / 2, y: rect.top, url });
+  };
+
   const activeRow = data.find(item => item.id === activeRowId);
   const searchInitialQuery = activeRow ? (activeRow.englishName || activeRow.name) : '';
 
@@ -186,7 +194,6 @@ export default function BatchImportModal({ isOpen, onClose, onSuccess }: BatchIm
                 </div>
               </div>
 
-              {/* 核心修复：overflow-visible */}
               <div className="bg-white rounded-2xl border border-stone-200 overflow-visible shadow-sm">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-stone-50 text-stone-500 font-medium sticky top-0 z-10 shadow-sm">
@@ -207,33 +214,12 @@ export default function BatchImportModal({ isOpen, onClose, onSuccess }: BatchIm
                         <td className="p-4 text-center"><input type="checkbox" checked={row.selected} onChange={() => toggleSelect(row.id)} className="rounded border-stone-300" /></td>
                         <td className="p-2"><input value={row.name} onChange={(e) => updateCell(row.id, 'name', e.target.value)} className={`w-full px-2 py-1 bg-stone-50 border rounded ${!row.name ? 'bg-red-50 border-red-300' : 'border-transparent'}`} /></td>
                         
-                        {/* 图片编辑列：带搜索和预览 */}
+                        {/* 图片操作列 */}
                         <td className="p-2 relative">
                           <div className="flex gap-2 items-center">
-                             <input 
-                               value={row.imageUrl} 
-                               onChange={(e) => updateCell(row.id, 'imageUrl', e.target.value)} 
-                               className={`flex-1 w-full px-2 py-1 bg-stone-50 border rounded text-xs font-mono truncate ${!row.imageUrl ? 'bg-red-50 border-red-300' : 'border-stone-200'}`} 
-                             />
-                             <button 
-                               onClick={() => openSearch(row.id)}
-                               className="p-1.5 bg-stone-100 rounded-lg hover:bg-blue-100 hover:text-blue-600 transition"
-                               title="搜索替换"
-                             >
-                               <Search size={14} />
-                             </button>
-                             <div className="relative group/preview">
-                               <button className="p-1.5 bg-stone-100 rounded-lg hover:bg-purple-100 hover:text-purple-600 transition cursor-help">
-                                 <Eye size={14} />
-                               </button>
-                               {/* 预览悬浮窗：z-[9999] */}
-                               {row.imageUrl && (
-                                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 h-48 bg-white shadow-2xl rounded-xl border border-stone-200 p-1 hidden group-hover/preview:block z-[9999] animate-in fade-in zoom-in-95 pointer-events-none">
-                                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                                   <img src={row.imageUrl} alt="preview" className="w-full h-full object-cover rounded-lg bg-stone-100" />
-                                 </div>
-                               )}
-                             </div>
+                             <input value={row.imageUrl} onChange={(e) => updateCell(row.id, 'imageUrl', e.target.value)} className={`flex-1 w-full px-2 py-1 bg-stone-50 border rounded text-xs font-mono truncate ${!row.imageUrl ? 'bg-red-50 border-red-300' : 'border-stone-200'}`} />
+                             <button onClick={() => openSearch(row.id)} className="p-1.5 bg-stone-100 rounded-lg hover:bg-blue-100 hover:text-blue-600 transition"><Search size={14} /></button>
+                             <button className="p-1.5 bg-stone-100 rounded-lg hover:bg-purple-100 hover:text-purple-600 transition cursor-help" onMouseEnter={(e) => handleMouseEnterPreview(e, row.imageUrl)} onMouseLeave={() => setPreview(null)}><Eye size={14} /></button>
                           </div>
                         </td>
 
@@ -251,7 +237,7 @@ export default function BatchImportModal({ isOpen, onClose, onSuccess }: BatchIm
           )}
         </div>
 
-        <div className="p-6 border-t border-stone-100 bg-white/80 backdrop-blur-xl flex justify-end gap-4 z-20 relative">
+        <div className="p-6 border-t border-stone-100 bg-white/80 backdrop-blur-xl flex justify-between items-center z-20 relative">
            <button onClick={() => fileInputRef.current?.click()} className="text-stone-500 hover:text-stone-800 text-sm font-medium flex items-center gap-2"><Upload size={16} /> 重新上传</button>
            <div className="flex gap-4">
              <button onClick={onClose} className="px-6 py-2.5 rounded-xl border border-stone-200 text-stone-600 font-medium">取消</button>
@@ -268,14 +254,28 @@ export default function BatchImportModal({ isOpen, onClose, onSuccess }: BatchIm
           initialQuery={searchInitialQuery}
           onSelect={(url, user) => {
             if (activeRowId) {
-              setData(prev => prev.map(item => item.id === activeRowId ? { 
-                ...item, 
-                imageUrl: url,
-                photographer: user
-              } : item));
+              setData(prev => prev.map(item => item.id === activeRowId ? { ...item, imageUrl: url, photographer: user } : item));
             }
           }}
         />
+      )}
+
+      {/* 固定预览层 (最高层级) */}
+      {preview && (
+        <div 
+          className="fixed z-[9999] pointer-events-none animate-in fade-in zoom-in-95 duration-200 shadow-2xl rounded-xl border-2 border-white bg-white"
+          style={{
+            left: preview.x,
+            top: preview.y,
+            transform: 'translate(-50%, -100%) translateY(-10px)', 
+            width: '280px',
+            height: '210px'
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={preview.url} alt="preview" className="w-full h-full object-cover rounded-lg bg-stone-100" />
+          <div className="absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-b border-r border-white transform rotate-45 shadow-sm"></div>
+        </div>
       )}
     </div>
   );

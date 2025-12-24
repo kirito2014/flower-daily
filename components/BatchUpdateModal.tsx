@@ -26,6 +26,9 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
   const [showUnsplash, setShowUnsplash] = useState(false);
   const [activeRowId, setActiveRowId] = useState<string | null>(null);
 
+  // === 核心修复：悬浮预览状态 (坐标 + URL) ===
+  const [preview, setPreview] = useState<{ x: number, y: number, url: string } | null>(null);
+
   useEffect(() => {
     if (isOpen) {
       loadData();
@@ -129,6 +132,18 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
     setShowUnsplash(true);
   };
 
+  // 处理预览悬浮
+  const handleMouseEnterPreview = (e: React.MouseEvent, url: string) => {
+    if (!url) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    // 设置预览图显示在图标上方
+    setPreview({
+      x: rect.left + rect.width / 2, // 水平居中
+      y: rect.top, // 图标顶部
+      url
+    });
+  };
+
   const activeRow = data.find(item => item.id === activeRowId);
   const searchInitialQuery = activeRow ? (activeRow.englishName || activeRow.name) : '';
 
@@ -138,7 +153,6 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/30 backdrop-blur-md animate-in fade-in duration-200">
       <div className="bg-white/95 w-[95%] max-w-[90rem] h-[90vh] rounded-3xl shadow-2xl border border-white/50 flex flex-col overflow-hidden relative">
         
-        {/* Header */}
         <div className="px-8 py-6 border-b border-stone-100 flex justify-between items-center bg-white/50 backdrop-blur-xl z-20 relative">
           <div>
             <h2 className="text-2xl font-serif font-bold text-stone-800 flex items-center gap-2">
@@ -168,9 +182,6 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
                 </div>
               </div>
 
-              {/* 核心修复：overflow-visible 
-                 让内部的 absolute 预览图可以超出表格边界显示
-              */}
               <div className="bg-white rounded-2xl border border-stone-200 overflow-visible shadow-sm">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-stone-50 text-stone-500 font-medium sticky top-0 z-10 shadow-sm">
@@ -197,7 +208,7 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
                              <input 
                                value={row.imageUrl} 
                                onChange={(e) => updateCell(row.id, 'imageUrl', e.target.value)} 
-                               className="flex-1 w-full px-2 py-1 bg-stone-50 border border-stone-200 rounded focus:bg-white text-xs font-mono truncate"
+                               className={`flex-1 w-full px-2 py-1 bg-stone-50 border rounded text-xs font-mono truncate ${!row.imageUrl ? 'bg-red-50 border-red-300' : 'border-stone-200'}`} 
                              />
                              <button 
                                onClick={() => openSearch(row.id)}
@@ -206,20 +217,14 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
                              >
                                <Search size={14} />
                              </button>
-                             <div className="relative group/preview">
-                               <button className="p-1.5 bg-stone-100 rounded-lg hover:bg-purple-100 hover:text-purple-600 transition cursor-help">
-                                 <Eye size={14} />
-                               </button>
-                               {/* 核心修复：z-[9999] + fixed/absolute 
-                                  这里使用 absolute bottom-full，并确保父容器 overflow-visible
-                               */}
-                               {row.imageUrl && (
-                                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 h-48 bg-white shadow-2xl rounded-xl border border-stone-200 p-1 hidden group-hover/preview:block z-[9999] animate-in fade-in zoom-in-95 pointer-events-none">
-                                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                                   <img src={row.imageUrl} alt="preview" className="w-full h-full object-cover rounded-lg bg-stone-100" />
-                                 </div>
-                               )}
-                             </div>
+                             {/* 预览按钮：鼠标进入触发顶层预览 */}
+                             <button 
+                               className="p-1.5 bg-stone-100 rounded-lg hover:bg-purple-100 hover:text-purple-600 transition cursor-help"
+                               onMouseEnter={(e) => handleMouseEnterPreview(e, row.imageUrl)}
+                               onMouseLeave={() => setPreview(null)}
+                             >
+                               <Eye size={14} />
+                             </button>
                           </div>
                         </td>
 
@@ -258,6 +263,29 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
             }
           }}
         />
+      )}
+
+      {/* === 核心修复：全局 Fixed 预览层 (在所有遮挡层之上) === */}
+      {preview && (
+        <div 
+          className="fixed z-[9999] pointer-events-none animate-in fade-in zoom-in-95 duration-200 shadow-2xl rounded-xl border-2 border-white bg-white"
+          style={{
+            left: preview.x,
+            top: preview.y,
+            transform: 'translate(-50%, -100%) translateY(-10px)', // 居中并向上偏移
+            width: '280px',
+            height: '210px'
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img 
+            src={preview.url} 
+            alt="preview" 
+            className="w-full h-full object-cover rounded-lg bg-stone-100" 
+          />
+          {/* 小三角 */}
+          <div className="absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-b border-r border-white transform rotate-45 shadow-sm"></div>
+        </div>
       )}
     </div>
   );

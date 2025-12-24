@@ -15,8 +15,8 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
   const [isFlipped, setIsFlipped] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   
-  // Refs
-  const cardRef = useRef<HTMLDivElement>(null);
+  // Refs 用于直接操作 DOM，绕过 React 渲染周期，实现高性能动画
+  const cardRef = useRef<HTMLDivElement>(null); // 外层引用 (用于动画)
   const cardInnerRef = useRef<HTMLDivElement>(null);
   const frontImgRef = useRef<HTMLDivElement>(null);
   const backImgRef = useRef<HTMLDivElement>(null);
@@ -27,7 +27,7 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
 
   const rafRef = useRef<number>(0);
 
-  // === 1. 物理动画逻辑 (完整保留) ===
+  // === 1. 移植 script.js 的核心状态机与物理逻辑 (完整保留) ===
   useEffect(() => {
     const card = cardRef.current;
     const cardInner = cardInnerRef.current;
@@ -36,6 +36,7 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
 
     if (!card || !cardInner || !frontImg || !backImg) return;
 
+    // 状态定义 (来自 script.js)
     const AnimationState = {
         RANDOM_FLOAT: 'random_float',
         HOVER: 'hover',
@@ -44,8 +45,10 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
     };
 
     let currentState = AnimationState.RANDOM_FLOAT;
+    // 当前物理位置
     let currentPosition = { x: 0, y: 0, rotate: 0, rotateX: 0, rotateY: 0 };
     
+    // 生成随机位置 (Idle 动画)
     function generateRandomPosition() {
         return {
             x: (Math.random() - 0.5) * 10,
@@ -56,10 +59,11 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
         };
     }
 
+    // 核心：平滑过渡函数
     function smoothTransition(targetPos: any, duration = 2000) {
         const startPos = { ...currentPosition };
         const startTime = performance.now();
-        const baseRotation = isFlipped ? 180 : 0;
+        const baseRotation = isFlipped ? 180 : 0; // 考虑翻转状态
 
         function update(currentTime: number) {
             if (currentState !== AnimationState.RANDOM_FLOAT) return;
@@ -67,18 +71,22 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
             const elapsed = currentTime - startTime;
             const progress = Math.min(elapsed / duration, 1);
             
+            // 缓动函数
             const easeProgress = progress < .5 ? 
                 4 * progress * progress * progress : 
                 1 - Math.pow(-2 * progress + 2, 3) / 2;
 
+            // 插值计算
             const x = startPos.x + (targetPos.x - startPos.x) * easeProgress;
             const y = startPos.y + (targetPos.y - startPos.y) * easeProgress;
             const rotate = startPos.rotate + (targetPos.rotate - startPos.rotate) * easeProgress;
             const rotateX = startPos.rotateX + (targetPos.rotateX - startPos.rotateX) * easeProgress;
             const rotateY = startPos.rotateY + (targetPos.rotateY - startPos.rotateY) * easeProgress;
 
+            // 更新当前位置引用
             currentPosition = { x, y, rotate, rotateX, rotateY };
 
+            // 应用到 DOM
             if (cardInner) {
                 cardInner.style.transform = `
                     translate3d(${x}px, ${y}px, 0)
@@ -88,6 +96,7 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
                 `;
             }
 
+            // 同步更新图片视差
             const imgTransform = `
                 translate3d(${-x * 0.5}px, ${-y * 0.5}px, 0)
                 rotateX(${-rotateX * 0.5}deg)
@@ -112,26 +121,34 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
         smoothTransition(targetPos);
     }
 
+    // --- 事件监听 ---
+
+    // 1. Mouse Enter
     const handleMouseEnter = () => {
         if (currentState === AnimationState.FLIP) return;
         currentState = AnimationState.HOVER;
         cancelAnimationFrame(rafRef.current);
+        
         cardInner.style.transition = 'transform 0.2s ease-out';
         if (frontImg) frontImg.style.transition = 'transform 0.2s ease-out';
         if (backImg) backImg.style.transition = 'transform 0.2s ease-out';
     };
 
+    // 2. Mouse Move
     const handleMouseMove = (e: MouseEvent) => {
         if (currentState !== AnimationState.HOVER) return;
+
         const rect = card.getBoundingClientRect();
         const x = (e.clientX - rect.left - rect.width / 2) / rect.width;
         const y = (e.clientY - rect.top - rect.height / 2) / rect.height;
+
         const baseRotation = isFlipped ? 180 : 0;
 
         cardInner.style.transform = `
             rotateY(${baseRotation + x * 20}deg)
             rotateX(${-y * 20}deg)
         `;
+
         const imgTransform = `
             translate3d(${x * -30}px, ${y * -30}px, 0)
             scale(1.1)
@@ -140,14 +157,17 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
         if (backImg) backImg.style.transform = imgTransform;
     };
 
+    // 3. Mouse Leave
     const handleMouseLeave = () => {
         if (currentState === AnimationState.FLIP) return;
         currentState = AnimationState.TRANSITION;
+
         const resetImgTransform = 'translate3d(0, 0, 0) scale(1.0)';
         
         cardInner.style.transition = 'transform 0.6s cubic-bezier(0.23, 1, 0.32, 1)';
         if (frontImg) {
             frontImg.style.transition = 'transform 0.6s cubic-bezier(0.23, 1, 0.32, 1)';
+            frontImg.style.transform = resetImgTransform;
             frontImg.style.transform = resetImgTransform;
         }
         if (backImg) {
@@ -206,6 +226,7 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
   }, []);
 
   const handleCardClick = (e: React.MouseEvent) => {
+    // 阻止按钮冒泡触发翻转
     if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('a')) return;
     if (!isFlipped) triggerPetalExplosion();
     if (!isSharing) setIsFlipped(!isFlipped);
