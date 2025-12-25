@@ -153,6 +153,7 @@ export default function BatchImportModal({ isOpen, onClose, onSuccess }: BatchIm
 
   const activeRow = data.find(item => item.id === activeRowId);
   const searchInitialQuery = activeRow ? (activeRow.englishName || activeRow.name) : '';
+  const selectedCount = data.filter(i => i.selected).length;
 
   if (!isOpen) return null;
 
@@ -170,9 +171,10 @@ export default function BatchImportModal({ isOpen, onClose, onSuccess }: BatchIm
           <button onClick={onClose} className="p-2 hover:bg-stone-100 rounded-full transition-colors"><X className="text-stone-500" /></button>
         </div>
 
-        <div className="flex-1 overflow-auto p-8 bg-stone-50/30">
+        {/* 修复：移除 pt-8，防止 Sticky Header 上方出现空隙 */}
+        <div className="flex-1 overflow-auto px-8 pb-8 bg-stone-50/30">
           {data.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center gap-6 border-2 border-dashed border-stone-200 rounded-2xl bg-white/40">
+            <div className="h-full flex flex-col items-center justify-center gap-6 border-2 border-dashed border-stone-200 rounded-2xl bg-white/40 mt-8">
               <Upload size={48} className="text-blue-500" />
               <div className="text-center space-y-2">
                 <h3 className="text-lg font-bold text-stone-700">上传 Excel 文件</h3>
@@ -184,20 +186,11 @@ export default function BatchImportModal({ isOpen, onClose, onSuccess }: BatchIm
               </div>
             </div>
           ) : (
-            <div className="space-y-4 pb-20">
-              <div className="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border border-stone-100 sticky top-0 z-10">
-                <div className="flex items-center gap-4 px-2">
-                   <span className="text-sm font-bold text-stone-700">已加载 {data.length} 条</span>
-                   <span className="text-xs text-stone-400">选中 {data.filter(i=>i.selected).length} 条</span>
-                </div>
-                <div className="flex gap-3">
-                  <button onClick={handleDeleteSelected} className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition"><Trash2 size={14} /> 移除选中</button>
-                  <button onClick={handleAIFill} disabled={isProcessing} className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100 transition disabled:opacity-50">{isProcessing ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />} AI 自动补全</button>
-                </div>
-              </div>
-
+            // 修复：添加 mt-8 保持视觉间距，滚动时 margin 会被卷起，使 Header 贴顶
+            <div className="space-y-4 pb-20 mt-8">
               <div className="bg-white rounded-2xl border border-stone-200 overflow-visible shadow-sm">
                 <table className="w-full text-sm text-left">
+                  {/* sticky top-0 确保滚动时冻结表头 */}
                   <thead className="bg-stone-50 text-stone-500 font-medium sticky top-0 z-10 shadow-sm">
                     <tr>
                       <th className="p-4 w-12 text-center"><input type="checkbox" onChange={toggleSelectAll} className="rounded border-stone-300" /></th>
@@ -241,7 +234,22 @@ export default function BatchImportModal({ isOpen, onClose, onSuccess }: BatchIm
 
         <div className="p-6 border-t border-stone-100 bg-white/80 backdrop-blur-xl flex justify-between items-center z-20 relative">
            <button onClick={() => fileInputRef.current?.click()} className="text-stone-500 hover:text-stone-800 text-sm font-medium flex items-center gap-2"><Upload size={16} /> 重新上传</button>
-           <div className="flex gap-4">
+           
+           <div className="flex items-center gap-4">
+             {data.length > 0 && (
+                <>
+                  <div className="flex items-center gap-3 mr-2">
+                    <span className="text-sm font-bold text-stone-700">已加载 {data.length} 条</span>
+                    <span className="text-xs text-stone-400">选中 {selectedCount} 条</span>
+                  </div>
+                  
+                  <button onClick={handleDeleteSelected} className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition"><Trash2 size={14} /> 移除选中</button>
+                  <button onClick={handleAIFill} disabled={isProcessing} className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100 transition disabled:opacity-50">{isProcessing ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />} AI 自动补全</button>
+                  
+                  <div className="h-6 w-px bg-stone-200 mx-2" />
+                </>
+             )}
+
              <button onClick={onClose} className="px-6 py-2.5 rounded-xl border border-stone-200 text-stone-600 font-medium">取消</button>
              <button onClick={handleImport} disabled={data.length === 0 || isProcessing} className="px-8 py-2.5 rounded-xl bg-stone-900 text-white font-medium flex items-center gap-2 disabled:opacity-50"><Check size={18} /> 确认导入</button>
            </div>
