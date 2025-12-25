@@ -211,3 +211,41 @@ flower-daily/
 1. **数据库类型**: `prisma/schema.prisma` 默认配置为 `sqlite`。若要切换数据库，请修改 `provider` 并更新 `.env` 中的 `DATABASE_URL` 格式。
 2. **安全性**: `lib/crypto.ts` 用于加密存储敏感配置（如 API Key）。请确保生产环境密钥安全。
 3. **图片链接**: 系统目前存储的是图片 URL (主要来自 Unsplash)。如果使用 `BatchImport` 导入 Excel，请确保 Excel 模板格式正确。
+
+## trouble shooting
+
+1. **数据库连接失败**: 检查 `DATABASE_URL` 是否正确配置，确保数据库服务已启动。
+2. **API 调用失败**: 确认 `Base URL` 和 `API Key` 是否正确，检查网络连接。
+3. **图片加载失败**: 检查 Unsplash Access Key 是否有效，或尝试刷新图片缓存。
+4. **AI 响应失败**: 确认模型名称是否正确，检查 API Key 是否有效。
+5. **Windows 权限问题**: 错误代码 `os error 1314` 对应 Windows 的 `ERROR_PRIVILEGE_NOT_HELD`，提示“客户端没有所需的特权”。
+
+以下是解决此问题的几种方法，按推荐程度排序：
+
+### 方法 1：以管理员身份运行终端（最快解决方案）
+
+Windows 默认只允许管理员创建软链接。
+
+1. 关闭当前的终端或 VS Code。
+2. **右键点击** VS Code 图标或 PowerShell/CMD 图标。
+3. 选择 **“以管理员身份运行”**。
+4. 再次运行 `npm run build`。
+
+### 方法 2：开启 Windows 开发者模式（一劳永逸）
+
+开启开发者模式后，Windows 允许普通用户创建软链接，无需每次都用管理员权限。
+
+1. 打开 Windows **设置**。
+2. 搜索 **“开发者设置”** (Developer settings)。
+3. 找到 **“开发人员模式”** (Developer Mode) 并将其开关打开。
+4. 重启终端，再次尝试构建。
+
+### 方法 3：检查构建命令（规避 Turbopack）
+
+日志显示你正在使用 Next.js 16.1.0 并且启用了 Turbopack (`▲ Next.js 16.1.0 (Turbopack)` )。虽然 Next.js 15/16 正在逐步推广 Turbopack，但如果它在你的环境中不稳定，可以尝试强制使用 Webpack 打包（通常是默认行为，除非你在 `next.config.ts` 或命令中开启了它）。
+
+1. 检查 `package.json` 中的 `build` 脚本。如果是 `"build": "next build --turbo"`，请去掉 `--turbo`，改为 `"build": "next build"`。
+2. 如果已经是 `"build": "next build"`，但 Next.js 16 默认启用了 Turbopack 导致问题，你可以尝试显式关闭它（目前通常默认是 Webpack，除非 Next.js 16 改变了策略或你在配置文件中开启了实验性选项）。
+
+**总结建议：**
+请先尝试 **方法 1（以管理员运行）** 或 **方法 2（开启开发者模式）**，这通常能直接解决 `os error 1314` 问题。
