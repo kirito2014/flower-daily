@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poker Card Arc Interaction</title>
+    <style>
+        :root {
+            --card-width: 140px;
+            --card-height: 196px; /* 扑克牌比例 ~ 2.5 : 3.5 */
+            --bg-color: #2c3e50;
+            --card-bg: #ecf0f1;
+            --accent-color: #e74c3c;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none; /* 防止拖拽时选中文本 */
+        }
+
+        /* 背景模糊层 */
+        #blur-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* 让鼠标事件穿透 */
+            transition: backdrop-filter 0.5s ease;
+            z-index: 1;
+        }
+        
+        body.focused #blur-overlay {
+            backdrop-filter: blur(8px);
+            background: rgba(0,0,0,0.2);
+        }
+
+        /* 舞台容器 */
+        #stage {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            perspective: 1000px;
+        }
+
+        /* 隐形转盘中心，用于定位卡片 */
+        #wheel-center {
+            position: absolute;
+            left: 50%;
+            /* 初始位置由JS动态计算，对应 "屏幕的2/7 6/7处" */
+            width: 0;
+            height: 0;
+            /* 可视化调试用，生产环境隐藏 */
+            /* border: 2px solid red; */
+        }
+
+        .card {
+            position: absolute;
+            width: var(--card-width);
+            height: var(--card-height);
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            /* 变换原点设置在卡片底部中心，方便计算 */
+            transform-origin: center bottom; 
+            left: calc(var(--card-width) * -0.5); /* 居中修正 */
+            bottom: 0; 
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            transition: transform 0.1s linear, box-shadow 0.3s ease, filter 0.3s ease;
+            will-change: transform;
+            backface-visibility: hidden;
+        }
+
+        /* 牌面样式细节 */
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            bottom: 10px;
+            border: 2px dashed #bdc3c7;
+            border-radius: 8px;
+            pointer-events: none;
+        }
+
+        /* 激活状态（点击放大） */
+        .card.active {
+            z-index: 100 !important;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+            /* 激活时的具体 transform 由 JS 覆盖以实现平滑动画 */
+        }
+        
+        .card:hover:not(.active) {
+            background: #fff;
+        }
+
+        /* 提示文字 */
+        .hint {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.5);
+            z-index: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="hint">滚动滚轮 / 拖拽滑动 / 点击卡片</div>
+    <div id="blur-overlay"></div>
+    
+    <div id="stage">
+        <div id="wheel-center">
+            </div>
+    </div>
+
+<script>
+/**
+ * Core Logic for Arc Carousel
+ * Author: Code Master
+ */
+class CardCarousel {
+    constructor(containerId, cardCount = 13) {
+        this.container = document.getElementById(containerId);
+        this.wheel = document.getElementById('wheel-center');
+        this.cards = [];
+        this.cardCount = cardCount;
+        
+        // 几何参数 (根据需求动态计算)
+        this.radius = 0;
+        this.centerY = 0;
+        
+        // 状态变量
+        this.baseAngle = 0; // 整个转盘的偏移角度
+        this.cardSpacingAngle = 8; // 卡片间隔角度 (度)
+        this.isDragging = false;
+        this.lastMouseX = 0;
+        this.activeCardIndex = -1; // 当前点击放大的卡片索引
+        
+        this.init();
+    }
+
+    init() {
+        this.updateGeometry();
+        this.createCards();
+        this.addEventListeners();
+        this.render();
+        
+        // 窗口大小改变时重新计算几何
+        window.addEventListener('resize', () => {
+            this.updateGeometry();
+            this.render();
+        });
+    }
+
+    // 计算半径和圆心位置
+    updateGeometry() {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+
+        // 需求解读：
+        // 1. 半径为 "4/7" (这里假设为宽度的 4/7，或者是高度的比例，为保证视觉效果，取较大的基准)
+        // 2. 位置在屏幕下方
+        
+        // 设定半径 R
+        this.radius = Math.min(w, h) * (4/7) * 2.5; // *2.5 是为了让圆更大，弧度更平缓，符合底部展示效果
+        
+        // 设定圆心位置 Y
+        // 假设卡片顶部在屏幕下方 6/7 处，圆心需要在更下方
+        // 这里的逻辑是：将圆心放置在屏幕可视区域下方，使得圆的上沿切于屏幕下部
+        this.centerY = h * 0.8 + this.radius; 
+        
+        // 应用圆心位置
+        this.wheel.style.top = `${this.centerY}px`;
+    }
+
+    createCards() {
+        const suits = ['♠', '♥', '♣', '♦'];
+        const values = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+        
+        for (let i = 0; i < this.cardCount; i++) {
+            const card = document.createElement('div');
+            card.className = 'card';
+            
+            // 生成扑克内容
+            const val = values[i % 13];
+            const suit = suits[Math.floor(Math.random() * 4)];
+            card.innerHTML = `<span style="color: ${['♥','♦'].includes(suit) ? '#e74c3c' : '#2c3e50'}">${suit} ${val}</span>`;
+            
+            // 绑定索引
+            card.dataset.index = i;
+            
+            this.wheel.appendChild(card);
+            this.cards.push(card);
+        }
+    }
+
+    addEventListeners() {
+        // 1. 鼠标滚轮
+        window.addEventListener('wheel', (e) => {
+            if (this.activeCardIndex !== -1) return; // 激活状态下禁止滚动
+            // 线性速度：每次滚动固定角度
+            const delta = Math.sign(e.deltaY) * 2; 
+            this.baseAngle -= delta;
+            this.render();
+        });
+
+        // 2. 拖拽 (Mouse & Touch)
+        const startDrag = (x) => {
+            if (this.activeCardIndex !== -1) return;
+            this.isDragging = true;
+            this.lastMouseX = x;
+            document.body.style.cursor = 'grabbing';
+        };
+
+        const moveDrag = (x) => {
+            if (!this.isDragging) return;
+            const deltaX = x - this.lastMouseX;
+            // 将水平移动转换为角度旋转 (灵敏度系数 0.2)
+            this.baseAngle += deltaX * 0.2;
+            this.lastMouseX = x;
+            this.render();
+        };
+
+        const endDrag = () => {
+            this.isDragging = false;
+            document.body.style.cursor = 'default';
+        };
+
+        // Mouse Events
+        window.addEventListener('mousedown', (e) => startDrag(e.clientX));
+        window.addEventListener('mousemove', (e) => moveDrag(e.clientX));
+        window.addEventListener('mouseup', endDrag);
+
+        // Touch Events
+        window.addEventListener('touchstart', (e) => startDrag(e.touches[0].clientX));
+        window.addEventListener('touchmove', (e) => moveDrag(e.touches[0].clientX));
+        window.addEventListener('touchend', endDrag);
+
+        // 3. 点击卡片
+        this.cards.forEach(card => {
+            card.addEventListener('click', (e) => {
+                e.stopPropagation(); // 防止触发其它事件
+                const index = parseInt(card.dataset.index);
+                this.toggleActiveCard(index);
+            });
+        });
+
+        // 点击空白处取消激活
+        document.addEventListener('click', () => {
+            if (this.activeCardIndex !== -1) {
+                this.toggleActiveCard(-1);
+            }
+        });
+    }
+
+    toggleActiveCard(index) {
+        const body = document.body;
+
+        if (this.activeCardIndex === index) {
+            // 如果点击的是当前已激活的，则取消
+            this.activeCardIndex = -1;
+            body.classList.remove('focused');
+        } else {
+            // 激活新卡片
+            this.activeCardIndex = index;
+            if (index !== -1) {
+                body.classList.add('focused');
+                
+                // 计算让该卡片居中所需的 baseAngle
+                // 目标：当前卡片的绝对角度应为 0 度 (垂直向上)
+                // 公式：0 = index * spacing + targetBaseAngle
+                // targetBaseAngle = -(index * spacing)
+                const targetAngle = -(index * this.cardSpacingAngle);
+                
+                // 简单动画过渡到目标角度
+                this.animateToBaseAngle(targetAngle);
+            } else {
+                body.classList.remove('focused');
+            }
+        }
+        this.render();
+    }
+
+    animateToBaseAngle(target) {
+        // 简单的缓动动画
+        const start = this.baseAngle;
+        const change = target - start;
+        const duration = 500;
+        const startTime = performance.now();
+
+        const animate = (currentTime) => {
+            const elapsed = currentTime - startTime;
+            if (elapsed < duration) {
+                // Ease out cubic
+                const t = elapsed / duration;
+                const ease = (--t)*t*t+1;
+                
+                this.baseAngle = start + change * ease;
+                this.render();
+                requestAnimationFrame(animate);
+            } else {
+                this.baseAngle = target;
+                this.render();
+            }
+        };
+        requestAnimationFrame(animate);
+    }
+
+    render() {
+        const radToDeg = 180 / Math.PI;
+
+        this.cards.forEach((card, index) => {
+            // 1. 计算每个卡片相对于转盘中心的角度
+            // 修正：减去 90度 (Math.PI/2) 让 0度对应 12点钟方向，或者直接在CSS处理
+            // 这里我们定义 0 度为正上方 (屏幕上方)
+            const thetaDeg = this.baseAngle + (index * this.cardSpacingAngle);
+            
+            // 2. 转换为弧度
+            const thetaRad = thetaDeg * (Math.PI / 180);
+
+            // 3. 基础变换：
+            // - 先把卡片移动到圆周上：translate(0, -Radius) 
+            // - 再根据角度旋转：rotate(theta)
+            // 注意：因为 transform origin 是 bottom center，我们需要反向思考
+            // 实际上最简单的方法是：旋转容器 -> 移动 -> 反向旋转抵消？
+            // 
+            // 采用更直观的极坐标逻辑：
+            // 圆心在 (50%, centerY)。
+            // 卡片如果不旋转，是在圆心处。
+            // 我们需要：Rotate(theta) -> TranslateY(-Radius)
+            
+            if (this.activeCardIndex === index) {
+                // 如果是激活卡片，强制居中并放大
+                // 此时 baseAngle 正在动画中变为让该卡片居中的值
+                // 我们额外增加放大效果
+                // 这里的 Y 轴移动要比半径多，让它浮出圆弧
+                card.style.transform = `
+                    rotate(${thetaDeg}deg) 
+                    translateY(${-this.radius - 150}px) 
+                    scale(1.5)
+                `;
+                card.classList.add('active');
+            } else {
+                card.style.transform = `
+                    rotate(${thetaDeg}deg) 
+                    translateY(${-this.radius}px) 
+                    scale(1)
+                `;
+                card.classList.remove('active');
+            }
+
+            // 优化：计算不透明度或显隐，如果卡片转到了屏幕背面（角度过大）
+            // 比如超过 +/- 90度就隐藏，提高性能
+            // 规范化角度到 -180 ~ 180
+            let normalizedAngle = (thetaDeg % 360);
+            if (normalizedAngle > 180) normalizedAngle -= 360;
+            if (normalizedAngle < -180) normalizedAngle += 360;
+
+            if (Math.abs(normalizedAngle) > 100) {
+                card.style.opacity = 0;
+                card.style.pointerEvents = 'none';
+            } else {
+                card.style.opacity = 1;
+                card.style.pointerEvents = 'auto';
+            }
+        });
+    }
+}
+
+// 启动
+document.addEventListener('DOMContentLoaded', () => {
+    new CardCarousel('stage', 20); // 生成20张卡片
+});
+
+</script>
+</body>
+</html>
