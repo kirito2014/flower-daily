@@ -1,391 +1,651 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { saveSystemConfig, testAIConnection, getSystemConfig, deleteSystemConfig } from '@/app/actions/admin';
+import { saveSystemConfig, testAIConnection, getSystemConfig } from '@/app/actions/admin';
 import { saveImageConfig, getImageConfig, testImageConnection } from '@/app/actions/image';
-import { Loader2, CheckCircle2, AlertCircle, Server, Key, Bot, Trash2, Edit2, Play, Power, X, Image as ImageIcon, Sparkles } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Server, Key, Bot, Image as ImageIcon, Sparkles, Zap, Plug, Wifi, Pencil, Lock } from 'lucide-react';
 
-// AI 预设
+// === AI 提供商定义 ===
 const AI_PROVIDERS = [
-  { name: 'DeepSeek (深度求索)', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat', note: '性价比极高' },
-  { name: 'Moonshot (Kimi)', baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k', note: '中文能力强' },
-  { name: 'Aliyun (通义千问)', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-turbo', note: '需申请 DashScope' },
-  { name: 'OpenAI (官方)', baseUrl: 'https://api.openai.com/v1', model: 'gpt-3.5-turbo', note: '需科学上网' },
-  { name: '自定义', baseUrl: '', model: '', note: '手动填写' },
+  { id: 'deepseek', name: 'DeepSeek (深度求索)', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat', note: '性价比极高' },
+  { id: 'moonshot', name: 'Moonshot (Kimi)', baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k', note: '中文能力强' },
+  { id: 'aliyun', name: 'Aliyun (通义千问)', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-turbo', note: '需申请 DashScope' },
+  { id: 'openai', name: 'OpenAI (官方)', baseUrl: 'https://api.openai.com/v1', model: 'gpt-3.5-turbo', note: '需科学上网' },
+  { id: 'custom', name: '自定义服务', baseUrl: '', model: '', note: '手动填写' },
 ];
 
-// 图片服务预设
+// === 图片服务提供商定义 ===
 const IMG_PROVIDERS = [
-  { name: 'Unsplash (官方)', provider: 'unsplash', note: '需申请 Access Key' },
-  // 未来可扩展 Pexels 等
+  { id: 'unsplash', name: 'Unsplash (官方)', provider: 'unsplash', note: '全球最大的免费图库' },
+  { id: 'local', name: '本地存储 (Local)', provider: 'local', note: '仅保存到服务器本地' },
 ];
 
 export default function SettingsPage() {
-  const [loading, setLoading] = useState(false);
-  
-  // === 数据状态 ===
-  const [savedAI, setSavedAI] = useState<{baseUrl: string, modelName: string, apiKey: string} | null>(null);
-  const [savedImg, setSavedImg] = useState<{accessKey: string, provider: string} | null>(null);
-  
-  // === 表单状态 ===
   const [activeTab, setActiveTab] = useState<'ai' | 'image'>('ai');
-  const [aiForm, setAiForm] = useState({ baseUrl: '', apiKey: '', modelName: '' });
-  const [imgForm, setImgForm] = useState({ accessKey: '', provider: 'unsplash' });
+  const [loading, setLoading] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // === 测试结果 ===
-  const [aiTestResult, setAiTestResult] = useState<{success?: boolean; message?: string} | null>(null);
-  const [imgTestResult, setImgTestResult] = useState<{success?: boolean; message?: string} | null>(null);
+  // === 状态管理 ===
+  const [activeAiId, setActiveAiId] = useState<string>('deepseek');
+  const [activeImgId, setActiveImgId] = useState<string>('unsplash');
 
-  // 初始化加载
-  const refreshConfig = async () => {
-    // 并行加载
-    const [ai, img] = await Promise.all([getSystemConfig(), getImageConfig()]);
-    // @ts-ignore
-    setSavedAI(ai || null);
-    // @ts-ignore
-    setSavedImg(img || null);
-  };
+  // === 核心逻辑新增：编辑模式状态 ===
+  const [isEditing, setIsEditing] = useState<boolean>(true);
 
-  useEffect(() => { refreshConfig(); }, []);
+  // 配置缓存
+  const [aiConfigs, setAiConfigs] = useState<Record<string, any>>({});
+  const [imgConfigs, setImgConfigs] = useState<Record<string, any>>({});
+  
+  // 连接状态缓存 (Session 级别，刷新后重置)
+  const [connectedAiIds, setConnectedAiIds] = useState<Set<string>>(new Set());
+  const [connectedImgIds, setConnectedImgIds] = useState<Set<string>>(new Set());
 
-  // 辅助：获取服务商名称
-  const getAIProviderName = (url: string) => {
-    const match = AI_PROVIDERS.find(p => url.includes(p.baseUrl) && p.baseUrl !== '');
-    return match ? match.name : '自定义 AI';
-  };
+  // 表单状态
+  const [aiForm, setAiForm] = useState({ apiKey: '', baseUrl: '', model: '' });
+  const [imgForm, setImgForm] = useState({ accessKey: '', secretKey: '' });
 
-  // === 操作处理 ===
+  // === 初始化加载 ===
+  useEffect(() => {
+    const init = async () => {
+      setLoading(true);
+      try {
+        // 1. 并行加载所有 AI 配置
+        const aiMap: Record<string, any> = {};
+        await Promise.all(AI_PROVIDERS.map(async (p) => {
+          const conf = await getSystemConfig(p.id); 
+          if (conf) {
+            aiMap[p.id] = { 
+              ...conf, 
+              model: conf.modelName || '', 
+              baseUrl: conf.baseUrl || ''
+            };
+          }
+        }));
+        setAiConfigs(aiMap);
 
-  // 删除配置
-  const handleDeleteAI = async () => {
-    if(!confirm('确定删除 AI 配置？')) return;
-    await deleteSystemConfig();
-    setSavedAI(null);
-    setAiForm({ baseUrl: '', apiKey: '', modelName: '' });
-  };
+        // 2. 并行加载所有图片配置
+        const imgMap: Record<string, any> = {};
+        await Promise.all(IMG_PROVIDERS.map(async (p) => {
+          const conf = await getImageConfig(p.id);
+          if (conf) imgMap[p.id] = conf;
+        }));
+        setImgConfigs(imgMap);
 
-  // 填充表单以编辑
-  const handleEditAI = () => {
-    if (savedAI) {
-      setActiveTab('ai');
-      setAiForm({ ...savedAI, apiKey: savedAI.apiKey || '' });
-      document.getElementById('config-form')?.scrollIntoView({ behavior: 'smooth' });
+        // 3. 恢复默认选中项的表单数据并设置编辑状态
+        const initialAiId = 'deepseek';
+        if (aiMap[initialAiId]) {
+           setAiForm({
+             apiKey: '', // 敏感信息不回显
+             baseUrl: aiMap[initialAiId].baseUrl,
+             model: aiMap[initialAiId].model
+           });
+           setIsEditing(false); // 已有配置，默认为锁定状态
+        } else {
+           const def = AI_PROVIDERS.find(p => p.id === initialAiId);
+           setAiForm({ apiKey: '', baseUrl: def?.baseUrl || '', model: def?.model || '' });
+           setIsEditing(true); // 无配置，默认为编辑状态
+        }
+
+        if (imgMap['unsplash']) {
+           setImgForm({ accessKey: '', secretKey: '' });
+        }
+
+      } catch (error) {
+        console.error('Failed to load configs', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
+  }, []);
+
+  // === 切换服务商 ===
+  const handleSwitchAI = (providerId: string) => {
+    setActiveAiId(providerId);
+    setTestResult(null);
+    
+    const savedConfig = aiConfigs[providerId];
+    const providerDef = AI_PROVIDERS.find(p => p.id === providerId);
+    
+    // 如果有保存的配置，进入查看模式（锁定），否则进入编辑模式
+    if (savedConfig) {
+      setIsEditing(false);
+      setAiForm({
+        apiKey: '', 
+        baseUrl: savedConfig.baseUrl || providerDef?.baseUrl || '',
+        model: savedConfig.model || providerDef?.model || '' 
+      });
+    } else {
+      setIsEditing(true);
+      setAiForm({
+        apiKey: '',
+        baseUrl: providerDef?.baseUrl || '',
+        model: providerDef?.model || ''
+      });
     }
   };
 
-  const handleEditImg = () => {
-    if (savedImg) {
-      setActiveTab('image');
-      setImgForm({ ...savedImg, accessKey: savedImg.accessKey || '' });
-      document.getElementById('config-form')?.scrollIntoView({ behavior: 'smooth' });
+  const handleSwitchImg = (providerId: string) => {
+    setActiveImgId(providerId);
+    setTestResult(null);
+    const savedConfig = imgConfigs[providerId];
+    
+    if (savedConfig) {
+      setIsEditing(false);
+      setImgForm({ accessKey: '', secretKey: '' });
+    } else {
+      // Local 模式不需要输入 Key，不需要编辑模式，但为了统一逻辑，可以是 false 或者 true(不显示输入框)
+      setIsEditing(providerId !== 'local');
+      setImgForm({ accessKey: '', secretKey: '' });
     }
   };
 
-  // 测试连接
-  const handleTestAI = async () => {
-    setLoading(true);
-    setAiTestResult(null);
-    const res = await testAIConnection();
-    setAiTestResult(res);
-    setLoading(false);
+  // === 进入编辑模式 ===
+  const handleEnableEdit = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsEditing(true);
+    // 可以在这里清空测试结果，以免误导
+    setTestResult(null);
   };
 
-  const handleTestImg = async () => {
-    setLoading(true);
-    setImgTestResult(null);
-    const res = await testImageConnection();
-    setImgTestResult(res);
-    setLoading(false);
-  };
-
-  // 保存逻辑
+  // === 保存配置 ===
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // 如果当前不是编辑模式，什么都不做（防止回车提交）
+    if (!isEditing) return;
+
     setLoading(true);
+    setTestResult(null);
     try {
-      const formData = new FormData();
       if (activeTab === 'ai') {
-        formData.append('baseUrl', aiForm.baseUrl);
+        const formData = new FormData();
+        formData.append('key', activeAiId); 
         formData.append('apiKey', aiForm.apiKey);
-        formData.append('modelName', aiForm.modelName);
+        formData.append('baseUrl', aiForm.baseUrl);
+        formData.append('modelName', aiForm.model); 
+        
         await saveSystemConfig(formData);
+        
+        setAiConfigs(prev => ({ 
+          ...prev, 
+          [activeAiId]: { 
+            ...prev[activeAiId], 
+            baseUrl: aiForm.baseUrl, 
+            model: aiForm.model, 
+            isActive: true 
+          } 
+        }));
+        
+        // 保存成功，锁定并清空密码框显示
+        setAiForm(prev => ({ ...prev, apiKey: '' }));
+        setIsEditing(false);
+        alert(`已保存并启用 ${AI_PROVIDERS.find(p => p.id === activeAiId)?.name}`);
       } else {
-        formData.append('accessKey', imgForm.accessKey);
+        const formData = new FormData();
+        formData.append('key', activeImgId);
+        // 只有非 Local 模式才需要 Access Key
+        if (activeImgId !== 'local') {
+             formData.append('accessKey', imgForm.accessKey);
+        }
+        
         await saveImageConfig(formData);
+
+        setImgConfigs(prev => ({ 
+            ...prev, 
+            [activeImgId]: { ...prev[activeImgId], isActive: true } 
+        }));
+        
+        setImgForm(prev => ({ ...prev, accessKey: '' }));
+        setIsEditing(false);
+        alert('图片配置已保存');
       }
-      alert('配置保存成功！');
-      refreshConfig();
-    } catch (error: any) {
-      alert(`保存失败: ${error.message}`);
+    } catch (err) {
+      console.error(err);
+      alert('保存失败，请检查网络或后台日志');
     } finally {
       setLoading(false);
     }
   };
 
+  // === 测试连接 ===
+  const handleTest = async () => {
+    setLoading(true);
+    setTestResult(null);
+    try {
+      let res;
+      if (activeTab === 'ai') {
+        res = await testAIConnection(activeAiId); 
+        if (res.success) {
+           setConnectedAiIds(prev => new Set(prev).add(activeAiId));
+        }
+      } else {
+        // 增加对 Unsplash 在国内环境的特殊处理提示
+        try {
+            res = await testImageConnection(activeImgId);
+            if (res.success) {
+               setConnectedImgIds(prev => new Set(prev).add(activeImgId));
+            }
+        } catch (fetchError: any) {
+            // 捕获 fetch failed
+            console.error("Test connection failed:", fetchError);
+            res = { 
+                success: false, 
+                message: activeImgId === 'unsplash' 
+                    ? '连接 Unsplash 失败。如果您在中国大陆，可能是网络问题。' 
+                    : `连接测试失败: ${fetchError.message || '未知网络错误'}`
+            };
+        }
+      }
+      setTestResult(res);
+    } catch (e: any) {
+      setTestResult({ success: false, message: e.message || '连接测试发生系统错误' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // === 子组件：未激活卡片 ===
+  const InactiveCard = ({ 
+    title, 
+    note, 
+    isConfigured, 
+    isConnected,
+    onActivate 
+  }: { 
+    title: string, 
+    note: string, 
+    isConfigured: boolean, 
+    isConnected: boolean,
+    onActivate: () => void 
+  }) => (
+    <div className="w-full h-24 bg-white border border-stone-200 rounded-xl p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all group animate-in slide-in-from-bottom-2 duration-300">
+       <div className="flex flex-col">
+          <h3 className="text-stone-700 font-bold text-base flex items-center gap-2">
+             {title}
+             <span className="text-[10px] bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full font-normal">{note}</span>
+          </h3>
+          <div className="mt-1 flex items-center gap-2">
+             {isConfigured ? (
+               <div className="flex items-center gap-1.5">
+                 <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                 <span className="text-xs text-stone-600 font-medium">已配置</span>
+               </div>
+             ) : (
+               <div className="flex items-center gap-1.5">
+                 <div className="w-2 h-2 rounded-full bg-stone-300"></div>
+                 <span className="text-xs text-stone-400">未配置</span>
+               </div>
+             )}
+             
+             {isConfigured && (
+                isConnected ? (
+                  <div className="flex items-center gap-1.5 px-2 py-0.5 bg-green-50 rounded-full border border-green-100">
+                    <Wifi size={10} className="text-green-600" />
+                    <span className="text-[10px] text-green-600 font-bold">已连接</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 px-2 py-0.5 bg-stone-50 rounded-full border border-stone-100">
+                    <Wifi size={10} className="text-stone-400" />
+                    <span className="text-[10px] text-stone-400">未连接</span>
+                  </div>
+                )
+             )}
+          </div>
+       </div>
+       <button 
+         onClick={onActivate}
+         type="button"
+         className="px-4 py-2 rounded-lg border border-stone-200 text-stone-600 text-sm font-bold hover:bg-stone-900 hover:text-white hover:border-stone-900 transition-all active:scale-95 flex items-center gap-1"
+       >
+         <Zap size={14} />
+         切换
+       </button>
+    </div>
+  );
+
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-20 animate-in fade-in duration-500">
+    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500 pb-10">
       
-      {/* 标题区 */}
+      {/* 顶部标题 */}
       <div>
-        <h2 className="text-2xl font-serif font-bold text-stone-800">服务集成中心</h2>
-        <p className="text-stone-500 text-sm mt-1">配置 AI 智能生成与 Unsplash 图片服务，赋能花卉管理系统。</p>
+        <h1 className="text-3xl font-serif font-bold text-stone-800 flex items-center gap-3">
+          <Server className="text-stone-400" />
+          系统配置
+        </h1>
+        <p className="text-stone-500 mt-2 ml-1">管理 AI 模型接口与图片存储服务的连接参数。</p>
       </div>
 
-      {/* ================= 顶部：双卡片仪表盘 ================= */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        {/* === 卡片 1: AI 服务 === */}
-        <div className={`bg-white rounded-3xl shadow-sm border overflow-hidden relative transition-all ${savedAI ? 'border-green-200/50' : 'border-stone-200'}`}>
-          <div className="bg-stone-50/80 px-6 py-4 border-b border-stone-100 flex justify-between items-center backdrop-blur-sm">
-            <div className="flex items-center gap-2 text-stone-700 font-bold">
-              <Bot size={18} className={savedAI ? "text-green-600" : "text-stone-400"} />
-              AI 文本生成
-            </div>
-            {savedAI && (
-              <div className="flex gap-2">
-                 <button onClick={handleEditAI} className="p-1.5 text-stone-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition" title="编辑配置"><Edit2 size={16} /></button>
-                 <button onClick={handleDeleteAI} className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-full transition" title="删除配置"><Trash2 size={16} /></button>
-              </div>
-            )}
-          </div>
-          
-          <div className="p-6">
-            {savedAI ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                   <h3 className="font-bold text-lg text-stone-800">{getAIProviderName(savedAI.baseUrl)}</h3>
-                   <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium border border-green-200">已连接</span>
-                </div>
-                <div className="text-xs text-stone-500 space-y-1 font-mono bg-stone-50 p-3 rounded-xl border border-stone-100">
-                   <p>MODEL: {savedAI.modelName}</p>
-                   <p className="truncate" title={savedAI.baseUrl}>HOST : {savedAI.baseUrl}</p>
-                </div>
-                <button 
-                  onClick={handleTestAI}
-                  disabled={loading}
-                  className="w-full py-2 border border-stone-200 rounded-xl text-sm text-stone-600 hover:bg-stone-50 hover:text-stone-900 transition flex items-center justify-center gap-2"
-                >
-                  {loading ? <Loader2 className="animate-spin w-3 h-3"/> : <Play size={14} />} 连通性测试
-                </button>
-                {/* AI 测试结果 */}
-                {aiTestResult && (
-                  <div className={`text-xs p-2 rounded-lg flex items-center gap-2 ${aiTestResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                    {aiTestResult.success ? <CheckCircle2 size={12}/> : <AlertCircle size={12}/>}
-                    {aiTestResult.message}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-stone-400">
-                <div className="w-12 h-12 bg-stone-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                   <Power size={20} className="text-stone-300" />
-                </div>
-                <p className="text-sm">未配置 AI 服务</p>
-                <button onClick={() => { setActiveTab('ai'); document.getElementById('config-form')?.scrollIntoView({behavior:'smooth'}); }} className="text-xs text-blue-500 hover:underline mt-2">立即配置</button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* === 卡片 2: 图片服务 === */}
-        <div className={`bg-white rounded-3xl shadow-sm border overflow-hidden relative transition-all ${savedImg ? 'border-purple-200/50' : 'border-stone-200'}`}>
-          <div className="bg-stone-50/80 px-6 py-4 border-b border-stone-100 flex justify-between items-center backdrop-blur-sm">
-            <div className="flex items-center gap-2 text-stone-700 font-bold">
-              <ImageIcon size={18} className={savedImg ? "text-purple-600" : "text-stone-400"} />
-              图片搜索服务
-            </div>
-            {savedImg && (
-              <button onClick={handleEditImg} className="p-1.5 text-stone-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition" title="编辑配置"><Edit2 size={16} /></button>
-            )}
-          </div>
-          
-          <div className="p-6">
-            {savedImg ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                   <h3 className="font-bold text-lg text-stone-800">Unsplash</h3>
-                   <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full font-medium border border-purple-200">已就绪</span>
-                </div>
-                <div className="text-xs text-stone-500 space-y-1 font-mono bg-stone-50 p-3 rounded-xl border border-stone-100">
-                   <p>PROVIDER: {savedImg.provider || 'unsplash'}</p>
-                   <p>KEY: ••••••••••••••••</p>
-                </div>
-                <button 
-                  onClick={handleTestImg}
-                  disabled={loading}
-                  className="w-full py-2 border border-stone-200 rounded-xl text-sm text-stone-600 hover:bg-stone-50 hover:text-stone-900 transition flex items-center justify-center gap-2"
-                >
-                  {loading ? <Loader2 className="animate-spin w-3 h-3"/> : <Play size={14} />} 连通性测试
-                </button>
-                {/* 图片 测试结果 */}
-                {imgTestResult && (
-                  <div className={`text-xs p-2 rounded-lg flex items-center gap-2 ${imgTestResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                    {imgTestResult.success ? <CheckCircle2 size={12}/> : <AlertCircle size={12}/>}
-                    {imgTestResult.message}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-stone-400">
-                <div className="w-12 h-12 bg-stone-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                   <ImageIcon size={20} className="text-stone-300" />
-                </div>
-                <p className="text-sm">未配置 Unsplash</p>
-                <button onClick={() => { setActiveTab('image'); document.getElementById('config-form')?.scrollIntoView({behavior:'smooth'}); }} className="text-xs text-purple-500 hover:underline mt-2">立即配置</button>
-              </div>
-            )}
-          </div>
-        </div>
-
+      {/* 顶部 Tab 切换 */}
+      <div className="flex p-1 bg-stone-200/50 rounded-2xl w-fit">
+        <button
+          onClick={() => setActiveTab('ai')}
+          className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+            activeTab === 'ai' ? 'bg-white text-purple-600 shadow-sm' : 'text-stone-500 hover:text-stone-700'
+          }`}
+        >
+          <Bot size={18} />
+          AI 服务配置
+        </button>
+        <button
+          onClick={() => setActiveTab('image')}
+          className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+            activeTab === 'image' ? 'bg-white text-pink-600 shadow-sm' : 'text-stone-500 hover:text-stone-700'
+          }`}
+        >
+          <ImageIcon size={18} />
+          图片服务配置
+        </button>
       </div>
 
-      {/* ================= 底部：统一配置表单 ================= */}
-      <section id="config-form" className="bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden scroll-mt-24">
+      {/* 主内容区 */}
+      <form onSubmit={handleSave} className="flex flex-col gap-4">
         
-        {/* Tab 切换栏 */}
-        <div className="flex border-b border-stone-100">
-          <button 
-            onClick={() => setActiveTab('ai')}
-            className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'ai' ? 'bg-white text-stone-900 border-b-2 border-stone-900' : 'bg-stone-50 text-stone-500 hover:bg-stone-100'}`}
-          >
-            <Sparkles size={16} className={activeTab === 'ai' ? 'text-green-500' : ''}/>
-            配置 AI 参数
-          </button>
-          <button 
-            onClick={() => setActiveTab('image')}
-            className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'image' ? 'bg-white text-stone-900 border-b-2 border-stone-900' : 'bg-stone-50 text-stone-500 hover:bg-stone-100'}`}
-          >
-            <ImageIcon size={16} className={activeTab === 'image' ? 'text-purple-500' : ''} />
-            配置图片服务
-          </button>
-        </div>
+        {/* === AI 区域 === */}
+        {activeTab === 'ai' && (
+          <div className="space-y-4">
+            {AI_PROVIDERS.filter(p => p.id === activeAiId).map(provider => {
+              const isConfigured = !!aiConfigs[provider.id];
+              const isConnected = connectedAiIds.has(provider.id);
 
-        <form onSubmit={handleSave} className="p-8">
-          
-          {/* === AI 表单内容 === */}
-          {activeTab === 'ai' && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-left-2 duration-300">
-              
-              {/* 快速填充 */}
-              <div className="p-4 bg-stone-50 rounded-2xl border border-stone-100">
-                <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-3">快速选择服务商</label>
-                <div className="flex flex-wrap gap-2">
-                  {AI_PROVIDERS.map((p) => (
-                    <button
-                      key={p.name}
-                      type="button"
-                      onClick={() => setAiForm(prev => ({ ...prev, baseUrl: p.baseUrl, modelName: p.model }))}
-                      className="px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-xs hover:border-stone-400 hover:shadow-sm transition active:scale-95 text-stone-600"
-                    >
-                      {p.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              return (
+                <div key={provider.id} className="bg-white rounded-3xl p-8 border border-purple-100 shadow-xl shadow-purple-500/5 relative overflow-hidden animate-in zoom-in-95 duration-300">
+                  <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                    <Bot size={120} />
+                  </div>
+                  
+                  <div className="relative z-10">
+                    <div className="flex items-center justify-between mb-8">
+                       <div className="flex items-center gap-3">
+                         <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600">
+                           <Sparkles size={24} />
+                         </div>
+                         <div>
+                           <h2 className="text-xl font-bold text-stone-800 flex items-center gap-2">
+                             {provider.name}
+                             {isConfigured && (
+                               <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 text-xs border border-blue-100 font-medium flex items-center gap-1">
+                                 <CheckCircle2 size={10} /> 已配置
+                               </span>
+                             )}
+                             {isConnected && (
+                               <span className="px-2 py-0.5 rounded-md bg-green-50 text-green-600 text-xs border border-green-100 font-medium flex items-center gap-1">
+                                 <Wifi size={10} /> 已连接
+                               </span>
+                             )}
+                           </h2>
+                           <p className="text-stone-400 text-sm mt-0.5">{provider.note}</p>
+                         </div>
+                       </div>
+                       
+                       {/* 顶部操作栏 - 测试按钮 */}
+                       <div className="flex gap-2">
+                         <button 
+                           type="button" 
+                           onClick={handleTest}
+                           disabled={loading || !isConfigured}
+                           className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-xl text-sm font-bold transition flex items-center gap-2 disabled:opacity-50"
+                           title={isConfigured ? "测试 API 连通性" : "请先保存配置"}
+                         >
+                           {loading ? <Loader2 className="animate-spin" size={16} /> : <Plug size={16} />}
+                           测试连通性
+                         </button>
+                       </div>
+                    </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-stone-700">API Base URL</label>
-                  <div className="relative">
-                    <Server size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-                    <input 
-                      required
-                      value={aiForm.baseUrl}
-                      onChange={e => setAiForm({...aiForm, baseUrl: e.target.value})}
-                      className="w-full pl-10 pr-4 py-2.5 border border-stone-300 rounded-xl outline-none focus:ring-2 focus:ring-stone-500 font-mono text-sm"
-                      placeholder="https://..."
-                    />
+                    <div className="grid gap-6">
+                      <div className="grid md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-stone-500 uppercase flex items-center gap-1">
+                            <Server size={14} /> Base URL
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            disabled={!isEditing} // 锁定状态
+                            value={aiForm.baseUrl}
+                            onChange={e => setAiForm({ ...aiForm, baseUrl: e.target.value })}
+                            className={`w-full px-4 py-3 border border-stone-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition font-mono text-sm ${
+                                !isEditing ? 'bg-stone-100 text-stone-500 cursor-not-allowed' : 'bg-stone-50'
+                            }`}
+                            placeholder="https://api.example.com/v1"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-stone-500 uppercase flex items-center gap-1">
+                            <Bot size={14} /> Model Name
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            disabled={!isEditing} // 锁定状态
+                            value={aiForm.model}
+                            onChange={e => setAiForm({ ...aiForm, model: e.target.value })}
+                            className={`w-full px-4 py-3 border border-stone-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition font-mono text-sm ${
+                                !isEditing ? 'bg-stone-100 text-stone-500 cursor-not-allowed' : 'bg-stone-50'
+                            }`}
+                            placeholder="e.g. gpt-3.5-turbo"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-stone-500 uppercase flex items-center gap-1">
+                          <Key size={14} /> API Key
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="password"
+                            // 逻辑：如果是编辑模式，必须输入(除非已有config且用户不想改)；如果是非编辑模式，禁用
+                            // 这里简化逻辑：编辑模式下，如果未配置过则必填
+                            required={isEditing && !isConfigured} 
+                            disabled={!isEditing}
+                            value={aiForm.apiKey}
+                            onChange={e => setAiForm({ ...aiForm, apiKey: e.target.value })}
+                            className={`w-full pl-10 pr-4 py-3 border border-stone-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition font-mono text-sm tracking-widest ${
+                                !isEditing ? 'bg-stone-100 text-stone-500 cursor-not-allowed placeholder-stone-500' : 'bg-stone-50'
+                            }`}
+                            // 关键修改：非编辑模式下显示 星号，编辑模式下显示提示
+                            placeholder={!isEditing ? "********" : (isConfigured ? "已配置 (留空保持不变)" : "sk-........................")}
+                          />
+                          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">
+                            <Key size={16} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 底部保存栏 */}
+                    <div className="mt-8 pt-6 border-t border-stone-100 flex items-center justify-end gap-4">
+                       {testResult && (
+                          <div className={`flex items-center gap-2 text-sm font-medium ${testResult.success ? 'text-green-600' : 'text-red-500'}`}>
+                            {testResult.success ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                            {testResult.message}
+                          </div>
+                       )}
+                       
+                       {/* 按钮逻辑：编辑模式显示保存，锁定模式显示修改 */}
+                       {isEditing ? (
+                           <button 
+                             type="submit" 
+                             disabled={loading}
+                             className="px-8 py-3 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-bold shadow-lg shadow-stone-200 transition active:scale-95 flex items-center gap-2"
+                           >
+                             {loading && <Loader2 className="animate-spin" size={18} />}
+                             保存并启用
+                           </button>
+                       ) : (
+                           <button 
+                             type="button"
+                             onClick={handleEnableEdit}
+                             disabled={loading}
+                             className="px-8 py-3 bg-white border border-stone-200 hover:bg-stone-50 text-stone-700 rounded-xl font-bold shadow-sm transition active:scale-95 flex items-center gap-2"
+                           >
+                             <Pencil size={16} />
+                             修改配置
+                           </button>
+                       )}
+                    </div>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-stone-700">Model Name</label>
-                  <div className="relative">
-                    <Bot size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-                    <input 
-                      required
-                      value={aiForm.modelName}
-                      onChange={e => setAiForm({...aiForm, modelName: e.target.value})}
-                      className="w-full pl-10 pr-4 py-2.5 border border-stone-300 rounded-xl outline-none focus:ring-2 focus:ring-stone-500 font-mono text-sm"
-                      placeholder="gpt-3.5-turbo"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2 col-span-full">
-                  <label className="text-sm font-medium text-stone-700">API Key</label>
-                  <div className="relative">
-                    <Key size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-                    <input 
-                      type="password"
-                      required
-                      value={aiForm.apiKey}
-                      onChange={e => setAiForm({...aiForm, apiKey: e.target.value})}
-                      className="w-full pl-10 pr-4 py-2.5 border border-stone-300 rounded-xl outline-none focus:ring-2 focus:ring-stone-500 font-mono text-sm"
-                      placeholder="sk-..."
-                    />
-                  </div>
-                </div>
-              </div>
+              );
+            })}
+
+            {/* 未激活 AI 卡片队列 */}
+            <div className="flex flex-col gap-3">
+               {AI_PROVIDERS.filter(p => p.id !== activeAiId).map(provider => (
+                 <InactiveCard 
+                   key={provider.id}
+                   title={provider.name}
+                   note={provider.note}
+                   isConfigured={!!aiConfigs[provider.id]}
+                   isConnected={connectedAiIds.has(provider.id)}
+                   onActivate={() => handleSwitchAI(provider.id)}
+                 />
+               ))}
             </div>
-          )}
-
-          {/* === 图片表单内容 === */}
-          {activeTab === 'image' && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-300">
-              
-              {/* 服务商选择 */}
-              <div className="p-4 bg-stone-50 rounded-2xl border border-stone-100">
-                <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-3">选择图库服务商</label>
-                <div className="flex gap-2">
-                  {IMG_PROVIDERS.map((p) => (
-                    <button
-                      key={p.name}
-                      type="button"
-                      onClick={() => setImgForm(prev => ({ ...prev, provider: p.provider }))}
-                      className={`px-4 py-2 rounded-lg text-sm border transition flex items-center gap-2 ${imgForm.provider === p.provider ? 'bg-white border-purple-500 text-purple-700 shadow-sm ring-1 ring-purple-100' : 'bg-transparent border-stone-200 text-stone-600 hover:bg-white'}`}
-                    >
-                      <ImageIcon size={14} />
-                      {p.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="space-y-2">
-                   <label className="text-sm font-medium text-stone-700">Access Key (Client ID)</label>
-                   <div className="relative">
-                     <Key size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-                     <input 
-                       type="password"
-                       required
-                       value={imgForm.accessKey}
-                       onChange={e => setImgForm({...imgForm, accessKey: e.target.value})}
-                       className="w-full pl-10 pr-4 py-2.5 border border-stone-300 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm"
-                       placeholder="从 Unsplash Developers 获取..."
-                     />
-                   </div>
-                   <p className="text-xs text-stone-400 ml-1">
-                     请前往 <a href="https://unsplash.com/developers" target="_blank" className="underline hover:text-purple-600">Unsplash Developers</a> 申请应用并获取 Access Key。
-                   </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 保存按钮 */}
-          <div className="pt-8 border-t border-stone-100 mt-8 flex justify-end">
-            <button 
-              type="submit" 
-              disabled={loading}
-              className={`px-8 py-3 rounded-xl text-white font-bold shadow-lg transition active:scale-95 flex items-center gap-2 ${activeTab === 'ai' ? 'bg-stone-900 hover:bg-stone-800' : 'bg-purple-600 hover:bg-purple-700 shadow-purple-200'}`}
-            >
-              {loading && <Loader2 className="animate-spin" size={18} />}
-              保存{activeTab === 'ai' ? ' AI ' : '图片'}配置
-            </button>
           </div>
+        )}
 
-        </form>
-      </section>
+        {/* === 图片区域 === */}
+        {activeTab === 'image' && (
+           <div className="space-y-4">
+             {IMG_PROVIDERS.filter(p => p.id === activeImgId).map(provider => {
+                const isConfigured = !!imgConfigs[provider.id] || provider.id === 'local';
+                const isConnected = connectedImgIds.has(provider.id) || provider.id === 'local';
+
+                return (
+                  <div key={provider.id} className="bg-white rounded-3xl p-8 border border-pink-100 shadow-xl shadow-pink-500/5 relative overflow-hidden animate-in zoom-in-95 duration-300">
+                    <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                      <ImageIcon size={120} />
+                    </div>
+                    
+                    <div className="relative z-10">
+                      <div className="flex items-center justify-between mb-8">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-2xl bg-pink-50 flex items-center justify-center text-pink-600">
+                            <ImageIcon size={24} />
+                          </div>
+                          <div>
+                            <h2 className="text-xl font-bold text-stone-800 flex items-center gap-2">
+                              {provider.name}
+                              {isConfigured && (
+                                <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 text-xs border border-blue-100 font-medium flex items-center gap-1">
+                                  <CheckCircle2 size={10} /> 已配置
+                                </span>
+                              )}
+                              {isConnected && provider.id !== 'local' && (
+                                <span className="px-2 py-0.5 rounded-md bg-green-50 text-green-600 text-xs border border-green-100 font-medium flex items-center gap-1">
+                                  <Wifi size={10} /> 已连接
+                                </span>
+                              )}
+                            </h2>
+                            <p className="text-stone-400 text-sm mt-0.5">{provider.note}</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                        {provider.id !== 'local' && (
+                          <button 
+                            type="button" 
+                            onClick={handleTest}
+                            disabled={loading || !isConfigured}
+                            className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-xl text-sm font-bold transition flex items-center gap-2 disabled:opacity-50"
+                          >
+                            {loading ? <Loader2 className="animate-spin" size={16} /> : <Plug size={16} />}
+                            测试连接
+                          </button>
+                        )}
+                      </div>
+                      </div>
+
+                      {provider.id === 'local' ? (
+                        <div className="p-6 bg-stone-50 rounded-2xl border border-stone-200 text-center text-stone-500">
+                            <p>本地存储模式无需配置 Key，图片将直接保存在服务器硬盘中。</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                              <label className="text-xs font-bold text-stone-500 uppercase flex items-center gap-1">
+                                <Key size={14} /> Access Key
+                              </label>
+                              <div className="relative">
+                                  <input
+                                    type="password"
+                                    required={isEditing && !isConfigured}
+                                    disabled={!isEditing}
+                                    value={imgForm.accessKey}
+                                    onChange={e => setImgForm({ ...imgForm, accessKey: e.target.value })}
+                                    className={`w-full px-4 py-3 border border-stone-200 rounded-xl outline-none focus:ring-2 focus:ring-pink-200 focus:border-pink-400 transition font-mono text-sm ${
+                                        !isEditing ? 'bg-stone-100 text-stone-500 cursor-not-allowed placeholder-stone-500' : 'bg-stone-50'
+                                    }`}
+                                    placeholder={!isEditing ? "********" : (isConfigured ? "已配置 (留空保持不变)" : "Unsplash Access Key")}
+                                  />
+                                  {isEditing && (
+                                    <p className="text-xs text-stone-400 mt-1">
+                                      请前往 <a href="https://unsplash.com/developers" target="_blank" className="underline hover:text-pink-600">Unsplash Developers</a> 申请应用。
+                                    </p>
+                                  )}
+                              </div>
+                            </div>
+                        </div>
+                      )}
+
+                      <div className="mt-8 pt-6 border-t border-stone-100 flex items-center justify-end gap-4">
+                        {testResult && (
+                          <div className={`flex items-center gap-2 text-sm font-medium ${testResult.success ? 'text-green-600' : 'text-red-500'}`}>
+                            {testResult.success ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                            {testResult.message}
+                          </div>
+                        )}
+                        
+                        {provider.id !== 'local' ? (
+                            isEditing ? (
+                                <button 
+                                  type="submit" 
+                                  disabled={loading}
+                                  className="px-8 py-3 bg-pink-600 hover:bg-pink-700 text-white rounded-xl font-bold shadow-lg shadow-pink-200 transition active:scale-95 flex items-center gap-2"
+                                >
+                                  {loading && <Loader2 className="animate-spin" size={18} />}
+                                  保存并启用
+                                </button>
+                            ) : (
+                                <button 
+                                  type="button"
+                                  onClick={handleEnableEdit}
+                                  disabled={loading}
+                                  className="px-8 py-3 bg-white border border-stone-200 hover:bg-stone-50 text-stone-700 rounded-xl font-bold shadow-sm transition active:scale-95 flex items-center gap-2"
+                                >
+                                  <Pencil size={16} />
+                                  修改配置
+                                </button>
+                            )
+                        ) : (
+                            // Local 模式不需要保存按钮，或者显示一个禁用的按钮作为占位，这里直接显示激活提示
+                            <div className="text-sm text-stone-400 italic">无需额外配置，自动激活</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+             })}
+
+             {/* 未激活图片卡片队列 */}
+             <div className="flex flex-col gap-3">
+               {IMG_PROVIDERS.filter(p => p.id !== activeImgId).map(provider => (
+                 <InactiveCard 
+                   key={provider.id}
+                   title={provider.name}
+                   note={provider.note}
+                   isConfigured={!!imgConfigs[provider.id] || provider.id === 'local'}
+                   isConnected={connectedImgIds.has(provider.id) || provider.id === 'local'}
+                   onActivate={() => handleSwitchImg(provider.id)}
+                 />
+               ))}
+             </div>
+           </div>
+        )}
+
+      </form>
     </div>
   );
 }
