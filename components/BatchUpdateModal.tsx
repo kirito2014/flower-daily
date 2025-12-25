@@ -26,7 +26,7 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
   const [showUnsplash, setShowUnsplash] = useState(false);
   const [activeRowId, setActiveRowId] = useState<string | null>(null);
 
-  // === 核心修复：悬浮预览状态 (坐标 + URL) ===
+  // 悬浮预览状态 (坐标 + URL)
   const [preview, setPreview] = useState<{ x: number, y: number, url: string } | null>(null);
 
   useEffect(() => {
@@ -136,7 +136,6 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
   const handleMouseEnterPreview = (e: React.MouseEvent, url: string) => {
     if (!url) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    // 设置预览图显示在图标上方
     setPreview({
       x: rect.left + rect.width / 2, // 水平居中
       y: rect.top, // 图标顶部
@@ -253,26 +252,28 @@ export default function BatchUpdateModal({ isOpen, onClose, onSuccess }: BatchUp
           isOpen={true} 
           onClose={() => setShowUnsplash(false)} 
           initialQuery={searchInitialQuery}
-          onSelect={(url, user) => {
+          onSelect={(url, user, source, pgsource) => {
             if (activeRowId) {
               setData(prev => prev.map(item => item.id === activeRowId ? { 
                 ...item, 
                 imageUrl: url,
-                photographer: user
+                photographer: user,
+                sourceUrl: source,
+                pgsourceUrl: pgsource // === 新增：保存摄影师链接 ===
               } : item));
             }
           }}
         />
       )}
 
-      {/* === 核心修复：全局 Fixed 预览层 (在所有遮挡层之上) === */}
+      {/* 固定预览层 (在所有遮挡层之上) */}
       {preview && (
         <div 
           className="fixed z-[9999] pointer-events-none animate-in fade-in zoom-in-95 duration-200 shadow-2xl rounded-xl border-2 border-white bg-white"
           style={{
             left: preview.x,
             top: preview.y,
-            transform: 'translate(-50%, -100%) translateY(-10px)', // 居中并向上偏移
+            transform: 'translate(-50%, -100%) translateY(-10px)', 
             width: '280px',
             height: '210px'
           }}

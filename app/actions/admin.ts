@@ -5,9 +5,6 @@ import OpenAI from 'openai';
 import { revalidatePath } from 'next/cache';
 import { encrypt, decrypt } from '@/lib/crypto';
 
-// ... (getSystemConfig, saveSystemConfig, deleteSystemConfig, testAIConnection, generateFlowerContent 保持不变)
-// 为了简洁，这里仅展示修改后的 flower CRUD 相关函数
-
 // === 1. 系统配置相关 (省略，保持不变) ===
 export async function getSystemConfig(key: string = 'global_config') {
   const config = await prisma.appConfig.findUnique({ where: { id: key } });
@@ -60,7 +57,7 @@ export async function generateFlowerContent(flowerName: string) {
 
   const openai = new OpenAI({ baseURL: config.baseUrl, apiKey: config.apiKey });
   const prompt = `请根据花名"${flowerName}"生成以下 JSON 数据：
-    1. englishName: 对应的英文名称。
+    1. englishName: 对应的英文名称或拉丁文学名。
     2. language: 提炼一句唯美、治愈的花语（15字以内）。
     3. habit: 简短的生长习性。
     4. alias: 2-3个常见的别名，使用中文顿号"、"分隔，如果没有则留空。
@@ -74,7 +71,7 @@ export async function generateFlowerContent(flowerName: string) {
   return JSON.parse(completion.choices[0].message.content || '{}');
 }
 
-// === 3. 花卉管理 CRUD (核心修改部分) ===
+// === 3. 花卉管理 CRUD (修改部分：包含 pgsourceUrl) ===
 export async function getFlowers() {
   return await prisma.flower.findMany({
     orderBy: { createdAt: 'desc' },
@@ -85,7 +82,8 @@ export async function createFlower(formData: FormData) {
   const name = formData.get('name') as string;
   const englishName = formData.get('englishName') as string;
   const imageUrl = formData.get('imageUrl') as string;
-  const sourceUrl = formData.get('sourceUrl') as string; // === 新增：读取 sourceUrl ===
+  const sourceUrl = formData.get('sourceUrl') as string; 
+  const pgsourceUrl = formData.get('pgsourceUrl') as string; // === 新增：读取 pgsourceUrl ===
   const language = formData.get('language') as string;
   const habit = formData.get('habit') as string;
   const alias = formData.get('alias') as string;
@@ -93,7 +91,8 @@ export async function createFlower(formData: FormData) {
 
   await prisma.flower.create({
     data: { 
-      name, englishName, imageUrl, sourceUrl, language, habit, alias, photographer 
+      // @ts-ignore: 确保 prisma schema 已更新包含 pgsourceUrl
+      name, englishName, imageUrl, sourceUrl, pgsourceUrl, language, habit, alias, photographer 
     },
   });
 
@@ -105,7 +104,8 @@ export async function batchCreateFlowers(flowers: any[]) {
     name: f.name,
     englishName: f.englishName || '',
     imageUrl: f.imageUrl,
-    sourceUrl: f.sourceUrl || '', // === 新增：支持批量导入 sourceUrl ===
+    sourceUrl: f.sourceUrl || '', 
+    pgsourceUrl: f.pgsourceUrl || '', // === 新增：批量导入支持 pgsourceUrl ===
     language: f.language || '',
     habit: f.habit || '',
     alias: f.alias || '',
@@ -136,7 +136,9 @@ export async function batchUpdateFlowers(flowers: any[]) {
         alias: f.alias,
         photographer: f.photographer,
         imageUrl: f.imageUrl,
-        sourceUrl: f.sourceUrl // === 新增：支持批量更新 sourceUrl ===
+        sourceUrl: f.sourceUrl,
+        // @ts-ignore
+        pgsourceUrl: f.pgsourceUrl // === 新增：批量更新支持 pgsourceUrl ===
       }
     })
   );
@@ -156,7 +158,8 @@ export async function updateFlower(id: string, formData: FormData) {
   const name = formData.get('name') as string;
   const englishName = formData.get('englishName') as string;
   const imageUrl = formData.get('imageUrl') as string;
-  const sourceUrl = formData.get('sourceUrl') as string; // === 新增：读取 sourceUrl ===
+  const sourceUrl = formData.get('sourceUrl') as string;
+  const pgsourceUrl = formData.get('pgsourceUrl') as string; // === 新增：读取 pgsourceUrl ===
   const language = formData.get('language') as string;
   const habit = formData.get('habit') as string;
   const alias = formData.get('alias') as string;
@@ -165,7 +168,8 @@ export async function updateFlower(id: string, formData: FormData) {
   await prisma.flower.update({
     where: { id },
     data: { 
-      name, englishName, imageUrl, sourceUrl, language, habit, alias, photographer 
+      // @ts-ignore
+      name, englishName, imageUrl, sourceUrl, pgsourceUrl, language, habit, alias, photographer 
     },
   });
 

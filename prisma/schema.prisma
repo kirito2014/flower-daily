@@ -16,6 +16,7 @@ model Flower {
   imageUrl     String
   sourceUrl    String?  // 新增：图片来源链接
   photographer String?  // 新增：拍摄者/版权方
+  pgsourceUrl   String?  // 新增：摄影师链接
   language     String   // 花语
   habit        String   // 习性
   createdAt    DateTime @default(now())

@@ -53,19 +53,10 @@ export async function saveImageConfig(formData: FormData) {
   // Secret Key 为空时视业务需求，这里暂不强制抛错，但建议填写
 
   // 4. 构造更新数据
-  // 注意：假设 Schema 已更新支持 baseUrl 和 redirectUri
-  // 如果 Schema 只有 secretKey，你可能需要继续复用字段或扩展 Schema
   const data: any = { 
     isActive: true,
-    // baseUrl: baseUrl,       // 请确保 prisma schema 有此字段
-    // redirectUri: redirectUri // 请确保 prisma schema 有此字段
   };
 
-  // 兼容逻辑：如果 Schema 还没更新，这里演示如何尽可能利用现有字段
-  // 但为了满足你的需求 "数据库已有 secretkey 字段，可直接使用"，我们将其归位用于 Secret Key
-  // 对于 baseUrl 和 redirectUri，强烈建议更新 Schema。
-  // 下面的 create/update 对象基于 "标准字段已存在" 的假设编写。
-  
   await prisma.imageConfig.upsert({
     where: { id: key },
     update: {
@@ -154,7 +145,8 @@ export async function searchUnsplashImages(query: string, page: number = 1) {
       thumb: img.urls.small,
       full: img.urls.regular, 
       photographer: img.user.name,
-      htmlLink: img.links.html, // Unsplash 原文链接
+      htmlLink: img.links.html, // Unsplash 原文链接 (图片页)
+      photographerUrl: img.user.links.html, // === 新增：摄影师主页链接 ===
       // 如果前端点击需要跳转到 redirectUri，可以在这里处理，或者直接返回 redirectUri 让前端拼接
       downloadLocation: img.links.download_location,
       redirectUri: redirectUri 

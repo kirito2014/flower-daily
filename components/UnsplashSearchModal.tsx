@@ -10,15 +10,16 @@ interface UnsplashImage {
   thumb: string;
   full: string;
   photographer: string;
-  htmlLink: string; // === 新增：源链接字段 ===
+  htmlLink: string;
+  photographerUrl: string; // === 新增：摄影师链接字段 ===
   downloadLocation?: string;
 }
 
 interface UnsplashSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  // === 修改：onSelect 增加 sourceUrl 参数 ===
-  onSelect: (url: string, photographer: string, sourceUrl: string) => void;
+  // === 修改：onSelect 增加 pgsourceUrl 参数 ===
+  onSelect: (url: string, photographer: string, sourceUrl: string, pgsourceUrl: string) => void;
   initialQuery?: string;
 }
 
@@ -48,7 +49,7 @@ export default function UnsplashSearchModal({ isOpen, onClose, onSelect, initial
     setHasSearched(true);
     try {
       const images = await searchUnsplashImages(q);
-      // 类型断言或确保后端返回字段匹配，这里假设 action 返回了 htmlLink
+      // 类型断言，确保后端返回包含 photographerUrl
       setResults(images as unknown as UnsplashImage[]);
     } catch (error) {
       console.error(error);
@@ -109,9 +110,9 @@ export default function UnsplashSearchModal({ isOpen, onClose, onSelect, initial
                   key={img.id} 
                   className="group relative aspect-[3/4] rounded-2xl overflow-hidden cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 bg-stone-200"
                   onClick={() => {
-                    // === 修改：传递 htmlLink 作为 sourceUrl ===
-                    onSelect(img.full, img.photographer, img.htmlLink);
-                    onClose();
+                    // === 修改：传递 htmlLink (图片页) 和 photographerUrl (摄影师页) ===
+                    onSelect(img.full, img.photographer, img.htmlLink, img.photographerUrl);
+                    onClose(); 
                   }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}

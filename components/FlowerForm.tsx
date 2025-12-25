@@ -21,7 +21,9 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
   const [englishName, setEnglishName] = useState(flower?.englishName || '');
   const [alias, setAlias] = useState(flower?.alias || '');
   const [imageUrl, setImageUrl] = useState(flower?.imageUrl || '');
-  const [sourceUrl, setSourceUrl] = useState(flower?.sourceUrl || ''); // === 新增：源链接状态 ===
+  const [sourceUrl, setSourceUrl] = useState(flower?.sourceUrl || ''); 
+  // @ts-ignore: 假设 flower 包含 pgsourceUrl
+  const [pgsourceUrl, setPgsourceUrl] = useState(flower?.pgsourceUrl || ''); // === 新增：摄影师链接状态 ===
   const [photographer, setPhotographer] = useState(flower?.photographer || '');
   const [language, setLanguage] = useState(flower?.language || '');
   const [habit, setHabit] = useState(flower?.habit || '');
@@ -35,7 +37,8 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
     formData.append('englishName', englishName);
     formData.append('alias', alias);
     formData.append('imageUrl', imageUrl);
-    formData.append('sourceUrl', sourceUrl); // === 新增：提交源链接 ===
+    formData.append('sourceUrl', sourceUrl); 
+    formData.append('pgsourceUrl', pgsourceUrl); // === 新增：提交摄影师链接 ===
     formData.append('photographer', photographer);
     formData.append('language', language);
     formData.append('habit', habit);
@@ -47,7 +50,7 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
         await createFlower(formData);
         // 重置表单
         setName(''); setEnglishName(''); setAlias(''); 
-        setImageUrl(''); setSourceUrl(''); setPhotographer(''); 
+        setImageUrl(''); setSourceUrl(''); setPgsourceUrl(''); setPhotographer(''); 
         setLanguage(''); setHabit('');
       }
       onSuccess();
@@ -165,13 +168,23 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
                     />
                 </div>
             </div>
-            {/* 新增：Source URL 显示 (只读/可选编辑) */}
+            {/* Source URL 显示 (只读/可选编辑) */}
             <div className="relative">
                 <input 
                     name="sourceUrl"
                     placeholder="图片源链接 (Unsplash 页面地址)" 
                     value={sourceUrl}
                     onChange={e => setSourceUrl(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-stone-50 border border-stone-200 rounded-lg outline-none focus:ring-2 focus:ring-stone-200 transition font-mono text-[10px] text-stone-400"
+                />
+                <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={12} />
+            </div>
+            <div className="relative">
+                <input 
+                    name="pgsourceUrl"
+                    placeholder="摄影师个人界面链接" 
+                    value={pgsourceUrl}
+                    onChange={e => setPgsourceUrl(e.target.value)}
                     className="w-full pl-9 pr-4 py-2 bg-stone-50 border border-stone-200 rounded-lg outline-none focus:ring-2 focus:ring-stone-200 transition font-mono text-[10px] text-stone-400"
                 />
                 <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={12} />
@@ -220,10 +233,11 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
         isOpen={showUnsplash}
         onClose={() => setShowUnsplash(false)}
         initialQuery={englishName || name || ''} 
-        onSelect={(url, user, source) => {
+        onSelect={(url, user, source, pgsource) => {
           setImageUrl(url);
           setPhotographer(user);
-          setSourceUrl(source); // === 新增：保存源链接 ===
+          setSourceUrl(source);
+          setPgsourceUrl(pgsource); // === 新增：保存摄影师链接 ===
         }}
       />
     </>

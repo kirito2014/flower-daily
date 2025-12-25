@@ -77,7 +77,7 @@ export default function AdminFlowerListItem({
           </div>
 
           {/* 中间：花名 */}
-          <div className="flex flex-col items-center justify-center min-w-[120px] gap-2 px-4 border-r border-stone-100/50">
+          <div className="flex flex-col items-left justify-center min-w-[120px] gap-2 px-4 border-r border-stone-100/50">
             <h3 className="font-serif font-bold text-stone-800 text-2xl leading-none">
               {flower.name}
             </h3>

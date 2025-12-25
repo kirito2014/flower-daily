@@ -17,6 +17,8 @@ interface ImportData {
   habit: string;
   selected: boolean;
   status?: 'pending' | 'loading' | 'success' | 'error';
+  sourceUrl?: string; 
+  pgsourceUrl?: string; // === 新增：摄影师链接字段 ===
 }
 
 interface BatchImportModalProps {
@@ -252,9 +254,15 @@ export default function BatchImportModal({ isOpen, onClose, onSuccess }: BatchIm
           isOpen={true} 
           onClose={() => setShowUnsplash(false)} 
           initialQuery={searchInitialQuery}
-          onSelect={(url, user) => {
+          onSelect={(url, user, source, pgsource) => {
             if (activeRowId) {
-              setData(prev => prev.map(item => item.id === activeRowId ? { ...item, imageUrl: url, photographer: user } : item));
+              setData(prev => prev.map(item => item.id === activeRowId ? { 
+                ...item, 
+                imageUrl: url, 
+                photographer: user,
+                sourceUrl: source,
+                pgsourceUrl: pgsource // === 新增：保存摄影师链接 ===
+              } : item));
             }
           }}
         />
