@@ -1,11 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+// AI 相关从 admin 导入
 import { 
-  saveSystemConfig, toggleAIProvider, deleteSystemConfig, testAIConnection, getSystemConfig,
-  toggleImageProvider, deleteImageConfig, getImageConfig 
+  saveSystemConfig, toggleAIProvider, deleteSystemConfig, testAIConnection, getSystemConfig
 } from '@/app/actions/admin';
-import { saveImageConfig, testImageConnection } from '@/app/actions/image'; // 依然引用 image action 保存配置
+// Image 相关全部从 image 导入
+import { 
+  saveImageConfig, getImageConfig, testImageConnection, toggleImageProvider, deleteImageConfig 
+} from '@/app/actions/image';
 import { 
   Loader2, Bot, Image as ImageIcon, Sparkles, Zap, Power, Trash2, Edit2, CheckCircle2, XCircle, Save, Activity
 } from 'lucide-react';
@@ -98,8 +101,6 @@ function ProviderCard({ provider, type, config, isActive, onRefresh }: ProviderC
       // 保存成功后自动折叠，并刷新父级
       setIsExpanded(false);
       onRefresh();
-      // 可以选择自动测试一下
-      // handleTest(); 
     } catch (e) {
       alert('保存失败');
     } finally {
@@ -123,7 +124,6 @@ function ProviderCard({ provider, type, config, isActive, onRefresh }: ProviderC
 
   const handleToggleActive = async () => {
     // 只有已配置（有ID且有Config记录）的才能激活
-    // 这里简单的判断：config存在
     if (!config) return alert('请先配置并保存信息');
     
     setLoading(true);
@@ -168,7 +168,7 @@ function ProviderCard({ provider, type, config, isActive, onRefresh }: ProviderC
 
         {/* 右侧操作区 */}
         <div className="flex items-center gap-3">
-          {/* 激活开关 (只有配置了才显示，或者始终显示但禁用) */}
+          {/* 激活开关 */}
           <div className="flex items-center gap-2 mr-2">
              <span className={`text-xs font-medium ${isActive ? 'text-purple-600' : 'text-stone-400'}`}>
                {isActive ? 'ON' : 'OFF'}
@@ -193,7 +193,7 @@ function ProviderCard({ provider, type, config, isActive, onRefresh }: ProviderC
             <Edit2 size={18} />
           </button>
 
-          {/* 测试按钮 (折叠状态下也可以快速测试) */}
+          {/* 测试按钮 */}
           {hasConfig && (
             <button 
               onClick={handleTest}
@@ -282,7 +282,6 @@ function ProviderCard({ provider, type, config, isActive, onRefresh }: ProviderC
                )}
             </div>
             <div className="flex gap-3">
-              {/* 这里的测试按钮实际上是"先存后测"的逻辑 */}
               <button 
                  onClick={handleSave} 
                  disabled={loading}

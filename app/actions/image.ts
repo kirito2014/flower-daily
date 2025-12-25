@@ -6,7 +6,8 @@ import { revalidatePath } from 'next/cache';
 
 // === 图片配置管理 ===
 
-export async function getImageConfig(key: string = 'image_config') {
+// 获取图片配置
+export async function getImageConfig(key: string) {
   const config = await prisma.imageConfig.findUnique({
     where: { id: key },
   });
@@ -22,6 +23,7 @@ export async function getImageConfig(key: string = 'image_config') {
   return config;
 }
 
+// 保存图片配置
 export async function saveImageConfig(formData: FormData) {
   const key = (formData.get('key') as string) || 'image_config';
   const accessKey = (formData.get('accessKey') as string).trim();
@@ -41,32 +43,29 @@ export async function saveImageConfig(formData: FormData) {
   } else if (existingConfig?.accessKey) {
     encryptedAccessKey = existingConfig.accessKey;
   } else {
-    throw new Error('Access Key 不能为空');
+    // 如果是新建且没有 Key，则报错；如果是更新且没填 Key，沿用旧的
+    if (!existingConfig) throw new Error('Access Key 不能为空');
+    encryptedAccessKey = existingConfig.accessKey;
   }
 
-  // 3. 处理 Secret Key 加密 (Unsplash 必须项)
+  // 3. 处理 Secret Key 加密
   if (secretKey) {
     encryptedSecretKey = encrypt(secretKey);
   } else if (existingConfig?.secretKey) {
     encryptedSecretKey = existingConfig.secretKey;
   } 
-  // Secret Key 为空时视业务需求，这里暂不强制抛错，但建议填写
 
-  // 4. 构造更新数据
-  const data: any = { 
-    isActive: true,
-  };
-
+  // 4. 保存配置 (保持 isActive 原状态，如果是新建则默认为 false)
+  // 如果当前已经是激活状态，保存后依然激活；如果未激活，保存后依然未激活
   await prisma.imageConfig.upsert({
     where: { id: key },
     update: {
       accessKey: encryptedAccessKey,
       secretKey: encryptedSecretKey,
-      // @ts-ignore: 请在 prisma schema 中添加 baseUrl String?
+      // @ts-ignore
       baseUrl: baseUrl,
-      // @ts-ignore: 请在 prisma schema 中添加 redirectUri String?
+      // @ts-ignore
       redirectUri: redirectUri,
-      isActive: true,
     },
     create: {
       id: key,
@@ -76,17 +75,44 @@ export async function saveImageConfig(formData: FormData) {
       baseUrl: baseUrl,
       // @ts-ignore
       redirectUri: redirectUri,
-      isActive: true,
+      isActive: false, // 新建默认不激活
     },
   });
 
   revalidatePath('/admin/settings');
 }
 
+// 切换图片服务激活状态 (互斥逻辑)
+export async function toggleImageProvider(key: string, isActive: boolean) {
+  if (!isActive) {
+    // 关闭操作
+    await prisma.imageConfig.update({
+      where: { id: key },
+      data: { isActive: false }
+    });
+  } else {
+    // 开启操作，使用事务：先关闭所有，再开启当前
+    await prisma.$transaction(async (tx) => {
+      await tx.imageConfig.updateMany({ data: { isActive: false } });
+      await tx.imageConfig.update({
+        where: { id: key },
+        data: { isActive: true }
+      });
+    });
+  }
+  revalidatePath('/admin/settings');
+}
+
+// 删除图片配置
+export async function deleteImageConfig(key: string) {
+  await prisma.imageConfig.delete({ where: { id: key } });
+  revalidatePath('/admin/settings');
+}
+
 // === 测试连接 ===
-export async function testImageConnection(key: string = 'image_config') {
+export async function testImageConnection(key: string) {
   const config = await getImageConfig(key);
-  if (!config?.accessKey) return { success: false, message: '未找到配置' };
+  if (!config?.accessKey) return { success: false, message: '未找到配置或 Access Key 缺失' };
 
   // @ts-ignore
   const baseUrl = config.baseUrl || 'https://api.unsplash.com';
@@ -99,13 +125,15 @@ export async function testImageConnection(key: string = 'image_config') {
     });
     
     if (res.status === 200) {
-      return { success: true, message: 'Unsplash 连接成功！' };
+      return { success: true, message: '连接成功！' };
     } else {
       let msg = res.statusText;
       try {
         const err = await res.json();
         msg = err.errors?.join(', ') || msg;
       } catch (e) {}
+      
+      if (res.status === 401) msg = "401 鉴权失败：请检查 Access Key";
       return { success: false, message: `连接失败 (${res.status}): ${msg}` };
     }
   } catch (error: any) {
@@ -114,19 +142,31 @@ export async function testImageConnection(key: string = 'image_config') {
   }
 }
 
-// === 搜索 Unsplash (修改版：支持 orientation 和 license) ===
+// === 搜索 Unsplash ===
 export async function searchUnsplashImages(
   query: string, 
   page: number = 1, 
   orientation?: string, 
   license?: string
 ) {
-  let config = await getImageConfig('unsplash');
-  if (!config?.accessKey) {
-     config = await getImageConfig('image_config');
+  // 优先获取当前激活的配置
+  const activeConfig = await prisma.imageConfig.findFirst({
+    where: { isActive: true }
+  });
+  
+  let config = activeConfig;
+  
+  // 兜底逻辑：如果没有激活的，尝试找 'unsplash' 或 'image_config'
+  if (!config) {
+     config = await prisma.imageConfig.findUnique({ where: { id: 'unsplash' } });
+  }
+  if (!config) {
+     config = await prisma.imageConfig.findUnique({ where: { id: 'image_config' } });
   }
 
-  if (!config?.accessKey) throw new Error('请先在系统设置中配置 Unsplash');
+  if (!config?.accessKey) throw new Error('请先在系统设置中配置并激活图片服务');
+  
+  const decryptedAccessKey = decrypt(config.accessKey);
 
   // @ts-ignore
   const baseUrl = config.baseUrl || 'https://api.unsplash.com';
@@ -138,9 +178,8 @@ export async function searchUnsplashImages(
     const params = new URLSearchParams();
     params.append('page', page.toString());
     params.append('query', query);
-    params.append('per_page', '30'); // 按照您的要求设置为 30
+    params.append('per_page', '30'); 
     
-    // === 新增：添加筛选参数 ===
     if (orientation && orientation !== '') {
       params.append('orientation', orientation);
     }
@@ -150,7 +189,7 @@ export async function searchUnsplashImages(
 
     const res = await fetch(`${baseUrl}/search/photos?${params.toString()}`, {
       headers: {
-        'Authorization': `Client-ID ${config.accessKey}`
+        'Authorization': `Client-ID ${decryptedAccessKey}`
       }
     });
 
@@ -164,9 +203,8 @@ export async function searchUnsplashImages(
       thumb: img.urls.small,
       full: img.urls.regular, 
       photographer: img.user.name,
-      htmlLink: img.links.html, // Unsplash 原文链接 (图片页)
-      photographerUrl: img.user.links.html, // === 新增：摄影师主页链接 ===
-      // 如果前端点击需要跳转到 redirectUri，可以在这里处理，或者直接返回 redirectUri 让前端拼接
+      htmlLink: img.links.html, 
+      photographerUrl: img.user.links.html, 
       downloadLocation: img.links.download_location,
       redirectUri: redirectUri 
     }));

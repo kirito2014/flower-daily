@@ -35,10 +35,6 @@ export async function saveSystemConfig(formData: FormData) {
   if (/[^\x00-\x7F]/.test(apiKey)) throw new Error('API Key 包含非法字符');
   const encryptedKey = encrypt(apiKey);
 
-  // 仅更新或创建，保持原有的 isActive 状态 (如果是新建则默认为 false)
-  // 如果当前已经是激活状态，保存后依然激活；如果未激活，保存后依然未激活，需要手动点击激活按钮
-  const exist = await prisma.appConfig.findUnique({ where: { id: key } });
-
   await prisma.appConfig.upsert({
     where: { id: key },
     update: { baseUrl, apiKey: encryptedKey, modelName },
@@ -51,13 +47,13 @@ export async function saveSystemConfig(formData: FormData) {
 // 切换激活状态 (互斥逻辑)
 export async function toggleAIProvider(key: string, isActive: boolean) {
   if (!isActive) {
-    // 如果是关闭操作，直接设为 false
+    // 关闭操作
     await prisma.appConfig.update({
       where: { id: key },
       data: { isActive: false }
     });
   } else {
-    // 如果是开启操作，使用事务：先关闭所有，再开启当前
+    // 开启操作，使用事务：先关闭所有，再开启当前
     await prisma.$transaction(async (tx) => {
       await tx.appConfig.updateMany({ data: { isActive: false } });
       await tx.appConfig.update({
@@ -97,46 +93,6 @@ export async function testAIConnection(key: string) {
   }
 }
 
-// === 2. 图片配置 (Image) 相关 (在 admin.ts 中统一处理) ===
-
-// 获取图片配置
-export async function getImageConfig(key: string) {
-  const config = await prisma.imageConfig.findUnique({ where: { id: key } });
-  if (config) {
-    return {
-      ...config,
-      accessKey: config.accessKey ? decrypt(config.accessKey) : '',
-      secretKey: config.secretKey ? decrypt(config.secretKey) : '',
-    };
-  }
-  return config;
-}
-
-// 切换图片服务激活状态 (互斥逻辑)
-export async function toggleImageProvider(key: string, isActive: boolean) {
-  if (!isActive) {
-    await prisma.imageConfig.update({
-      where: { id: key },
-      data: { isActive: false }
-    });
-  } else {
-    await prisma.$transaction(async (tx) => {
-      await tx.imageConfig.updateMany({ data: { isActive: false } });
-      await tx.imageConfig.update({
-        where: { id: key },
-        data: { isActive: true }
-      });
-    });
-  }
-  revalidatePath('/admin/settings');
-}
-
-// 删除图片配置
-export async function deleteImageConfig(key: string) {
-  await prisma.imageConfig.delete({ where: { id: key } });
-  revalidatePath('/admin/settings');
-}
-
 // === 3. 业务逻辑：生成花语 ===
 
 export async function generateFlowerContent(flowerName: string) {
@@ -166,7 +122,7 @@ export async function generateFlowerContent(flowerName: string) {
   }
 }
 
-// === 4. 花卉 CRUD (保持不变) ===
+// === 4. 花卉 CRUD ===
 export async function getFlowers() {
   return await prisma.flower.findMany({ orderBy: { createdAt: 'desc' } });
 }
