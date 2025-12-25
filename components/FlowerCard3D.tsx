@@ -302,12 +302,20 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
                       {flower.name}
                   </h2>
                   <div className="flex items-center justify-between w-full mt-3">
-                     <div className="w-8 h-1 bg-white/90 rounded-full shadow-sm"></div>
+                     {/* <div className="w-8 h-1 bg-white/90 rounded-full shadow-sm"></div> */}
                      
                      {/* 新增：正面拍摄者信息 */}
                      {flower.photographer && (
                         <span className="text-[10px] text-white/70 font-medium font-mono flex items-center gap-1 backdrop-blur-sm px-2 py-1 rounded-full bg-black/20">
-                          <Camera size={10} /> {flower.photographer}
+                          <Camera size={10} />
+                          <a
+                            href={flower.pgsourceUrl || undefined}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline"
+                          >
+                            {flower.photographer}
+                          </a>
                         </span>
                      )}
                   </div>
@@ -329,7 +337,7 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
               <div className="back-content">
                  <div className="flex-1 flex flex-col items-center justify-center space-y-6">
                     
-                    <div className="flex items-baseline justify-center gap-3 w-full border-b border-stone-100 pb-4 mb-2">
+                    <div className="flex items-center justify-center gap-3 w-full border-b border-stone-100 pb-4 mb-2">
                         <h2 className="text-3xl font-serif font-bold text-stone-900">
                             {flower.name}
                         </h2>
@@ -358,7 +366,8 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
                     <div className="text-[10px] text-stone-400 font-mono flex flex-col items-center gap-0.5 opacity-80">
                         {flower.photographer && (
                             <span>
-                                Photo by <a href={`https://unsplash.com/@${flower.photographer}`} target="_blank" rel="noopener noreferrer" className="underline">{flower.photographer}</a> on {flower.sourceUrl ? <a href={flower.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline">Unsplash</a> : "Unsplash"}
+                                Photo by <a href={flower.pgsourceUrl || undefined} target="_blank" rel="noopener noreferrer" className="underline text-stone-600 ">{flower.photographer}</a> 
+                                 on <a href={flower.sourceUrl || undefined} target="_blank" rel="noopener noreferrer" className="underline text-stone-600">Unsplash</a>
                             </span>
                         )}
                     </div>
@@ -379,7 +388,7 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
 
                     {/* 2. 查看原图/跳转 (占1格) */}
                     <a 
-                      href={flower.imageUrl}
+                      href={flower.sourceUrl || undefined}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
