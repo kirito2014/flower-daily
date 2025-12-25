@@ -6,30 +6,87 @@ import { revalidatePath } from 'next/cache';
 
 // === 图片配置管理 ===
 
-// 修改：支持传入 key，默认为 'image_config'
 export async function getImageConfig(key: string = 'image_config') {
   const config = await prisma.imageConfig.findUnique({
     where: { id: key },
   });
-  if (config && config.accessKey) {
-    return { ...config, accessKey: decrypt(config.accessKey) };
+  
+  if (config) {
+    return {
+      ...config,
+      // 解密敏感字段
+      accessKey: config.accessKey ? decrypt(config.accessKey) : '',
+      secretKey: config.secretKey ? decrypt(config.secretKey) : '',
+    };
   }
   return config;
 }
 
 export async function saveImageConfig(formData: FormData) {
-  // 修改：从 FormData 获取 key
   const key = (formData.get('key') as string) || 'image_config';
   const accessKey = (formData.get('accessKey') as string).trim();
+  const secretKey = (formData.get('secretKey') as string).trim();
+  const baseUrl = (formData.get('baseUrl') as string || '').trim();
+  const redirectUri = (formData.get('redirectUri') as string || '').trim();
+
+  // 1. 检查是否存在旧配置
+  const existingConfig = await prisma.imageConfig.findUnique({ where: { id: key } });
   
-  if (!accessKey) throw new Error('Access Key 不能为空');
+  let encryptedAccessKey = '';
+  let encryptedSecretKey = '';
 
-  const encryptedKey = encrypt(accessKey);
+  // 2. 处理 Access Key 加密 (如果有输入则更新，否则保留)
+  if (accessKey) {
+    encryptedAccessKey = encrypt(accessKey);
+  } else if (existingConfig?.accessKey) {
+    encryptedAccessKey = existingConfig.accessKey;
+  } else {
+    throw new Error('Access Key 不能为空');
+  }
 
+  // 3. 处理 Secret Key 加密 (Unsplash 必须项)
+  if (secretKey) {
+    encryptedSecretKey = encrypt(secretKey);
+  } else if (existingConfig?.secretKey) {
+    encryptedSecretKey = existingConfig.secretKey;
+  } 
+  // Secret Key 为空时视业务需求，这里暂不强制抛错，但建议填写
+
+  // 4. 构造更新数据
+  // 注意：假设 Schema 已更新支持 baseUrl 和 redirectUri
+  // 如果 Schema 只有 secretKey，你可能需要继续复用字段或扩展 Schema
+  const data: any = { 
+    isActive: true,
+    // baseUrl: baseUrl,       // 请确保 prisma schema 有此字段
+    // redirectUri: redirectUri // 请确保 prisma schema 有此字段
+  };
+
+  // 兼容逻辑：如果 Schema 还没更新，这里演示如何尽可能利用现有字段
+  // 但为了满足你的需求 "数据库已有 secretkey 字段，可直接使用"，我们将其归位用于 Secret Key
+  // 对于 baseUrl 和 redirectUri，强烈建议更新 Schema。
+  // 下面的 create/update 对象基于 "标准字段已存在" 的假设编写。
+  
   await prisma.imageConfig.upsert({
     where: { id: key },
-    update: { accessKey: encryptedKey, isActive: true },
-    create: { id: key, accessKey: encryptedKey, isActive: true },
+    update: {
+      accessKey: encryptedAccessKey,
+      secretKey: encryptedSecretKey,
+      // @ts-ignore: 请在 prisma schema 中添加 baseUrl String?
+      baseUrl: baseUrl,
+      // @ts-ignore: 请在 prisma schema 中添加 redirectUri String?
+      redirectUri: redirectUri,
+      isActive: true,
+    },
+    create: {
+      id: key,
+      accessKey: encryptedAccessKey,
+      secretKey: encryptedSecretKey,
+      // @ts-ignore
+      baseUrl: baseUrl,
+      // @ts-ignore
+      redirectUri: redirectUri,
+      isActive: true,
+    },
   });
 
   revalidatePath('/admin/settings');
@@ -40,8 +97,11 @@ export async function testImageConnection(key: string = 'image_config') {
   const config = await getImageConfig(key);
   if (!config?.accessKey) return { success: false, message: '未找到配置' };
 
+  // @ts-ignore
+  const baseUrl = config.baseUrl || 'https://api.unsplash.com';
+
   try {
-    const res = await fetch(`https://api.unsplash.com/search/photos?page=1&query=flower&per_page=1`, {
+    const res = await fetch(`${baseUrl}/search/photos?page=1&query=flower&per_page=1`, {
       headers: {
         'Authorization': `Client-ID ${config.accessKey}`
       }
@@ -50,19 +110,21 @@ export async function testImageConnection(key: string = 'image_config') {
     if (res.status === 200) {
       return { success: true, message: 'Unsplash 连接成功！' };
     } else {
-      const err = await res.json();
-      return { success: false, message: `连接失败: ${err.errors?.join(', ') || res.statusText}` };
+      let msg = res.statusText;
+      try {
+        const err = await res.json();
+        msg = err.errors?.join(', ') || msg;
+      } catch (e) {}
+      return { success: false, message: `连接失败 (${res.status}): ${msg}` };
     }
   } catch (error: any) {
-    return { success: false, message: `网络错误: ${error.message}` };
+    console.error('Image Service Error:', error);
+    return { success: false, message: `网络错误: ${error.message} (请检查 Base URL)` };
   }
 }
 
 // === 搜索 Unsplash ===
 export async function searchUnsplashImages(query: string, page: number = 1) {
-  // 搜索时，我们需要知道使用哪个配置。
-  // 简单起见，这里优先尝试 'unsplash'，如果不行则尝试 'image_config'
-  // 或者你可以约定必须配置 id='unsplash' 的那条
   let config = await getImageConfig('unsplash');
   if (!config?.accessKey) {
      config = await getImageConfig('image_config');
@@ -70,22 +132,35 @@ export async function searchUnsplashImages(query: string, page: number = 1) {
 
   if (!config?.accessKey) throw new Error('请先在系统设置中配置 Unsplash');
 
-  const res = await fetch(`https://api.unsplash.com/search/photos?page=${page}&query=${encodeURIComponent(query)}&per_page=12`, {
-    headers: {
-      'Authorization': `Client-ID ${config.accessKey}`
+  // @ts-ignore
+  const baseUrl = config.baseUrl || 'https://api.unsplash.com';
+  // @ts-ignore
+  const redirectUri = config.redirectUri || '';
+
+  try {
+    const res = await fetch(`${baseUrl}/search/photos?page=${page}&query=${encodeURIComponent(query)}&per_page=12`, {
+      headers: {
+        'Authorization': `Client-ID ${config.accessKey}`
+      }
+    });
+
+    if (!res.ok) {
+      throw new Error(`API 请求失败: ${res.statusText}`);
     }
-  });
 
-  if (!res.ok) {
-    throw new Error('搜索失败，请检查配置或网络');
+    const data = await res.json();
+    return data.results.map((img: any) => ({
+      id: img.id,
+      thumb: img.urls.small,
+      full: img.urls.regular, 
+      photographer: img.user.name,
+      htmlLink: img.links.html, // Unsplash 原文链接
+      // 如果前端点击需要跳转到 redirectUri，可以在这里处理，或者直接返回 redirectUri 让前端拼接
+      downloadLocation: img.links.download_location,
+      redirectUri: redirectUri 
+    }));
+  } catch (error: any) {
+    console.error('Search Error:', error);
+    throw new Error('搜索图片失败，请检查网络配置或代理地址');
   }
-
-  const data = await res.json();
-  return data.results.map((img: any) => ({
-    id: img.id,
-    thumb: img.urls.small,
-    full: img.urls.regular, 
-    photographer: img.user.name,
-    downloadLocation: img.links.download_location
-  }));
 }

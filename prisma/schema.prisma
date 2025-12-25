@@ -66,6 +66,8 @@ model ImageConfig {
   secretKey String?  // 加密存储
   provider  String   @default("unsplash")
   isActive  Boolean  @default(false) // 是否激活
+  baseUrl     String?   // 用于存储代理地址
+  redirectUri String?   // 新增：Redirect URI
   updatedAt DateTime @updatedAt
 }
 
