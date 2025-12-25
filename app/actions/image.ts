@@ -26,6 +26,8 @@ export async function getImageConfig(key: string) {
 // 保存图片配置
 export async function saveImageConfig(formData: FormData) {
   const key = (formData.get('key') as string) || 'image_config';
+  // === 新增：获取名称 ===
+  const name = (formData.get('name') as string) || 'Unsplash';
   const accessKey = (formData.get('accessKey') as string).trim();
   const secretKey = (formData.get('secretKey') as string).trim();
   const baseUrl = (formData.get('baseUrl') as string || '').trim();
@@ -56,10 +58,11 @@ export async function saveImageConfig(formData: FormData) {
   } 
 
   // 4. 保存配置 (保持 isActive 原状态，如果是新建则默认为 false)
-  // 如果当前已经是激活状态，保存后依然激活；如果未激活，保存后依然未激活
   await prisma.imageConfig.upsert({
     where: { id: key },
+    // === 修改：更新时包含 name ===
     update: {
+      name,
       accessKey: encryptedAccessKey,
       secretKey: encryptedSecretKey,
       // @ts-ignore
@@ -67,8 +70,10 @@ export async function saveImageConfig(formData: FormData) {
       // @ts-ignore
       redirectUri: redirectUri,
     },
+    // === 修改：创建时包含 name ===
     create: {
       id: key,
+      name,
       accessKey: encryptedAccessKey,
       secretKey: encryptedSecretKey,
       // @ts-ignore

@@ -28,6 +28,8 @@ export async function getActiveSystemConfig() {
 // 保存配置 (只保存，不激活)
 export async function saveSystemConfig(formData: FormData) {
   const key = (formData.get('key') as string) || 'global_config';
+  // === 新增：获取名称，如果未提供则使用默认值 ===
+  const name = (formData.get('name') as string) || 'Custom AI';
   const baseUrl = (formData.get('baseUrl') as string).trim();
   const apiKey = (formData.get('apiKey') as string).trim();
   const modelName = (formData.get('modelName') as string).trim();
@@ -37,8 +39,10 @@ export async function saveSystemConfig(formData: FormData) {
 
   await prisma.appConfig.upsert({
     where: { id: key },
-    update: { baseUrl, apiKey: encryptedKey, modelName },
-    create: { id: key, baseUrl, apiKey: encryptedKey, modelName, isActive: false },
+    // === 修改：更新时包含 name ===
+    update: { name, baseUrl, apiKey: encryptedKey, modelName },
+    // === 修改：创建时包含 name ===
+    create: { id: key, name, baseUrl, apiKey: encryptedKey, modelName, isActive: false },
   });
 
   revalidatePath('/admin/settings');
@@ -103,7 +107,7 @@ export async function generateFlowerContent(flowerName: string) {
 
   const openai = new OpenAI({ baseURL: config.baseUrl, apiKey: config.apiKey });
   const prompt = `请根据花名"${flowerName}"生成以下 JSON 数据：
-    1. englishName: 对应的英文名称。
+    1. englishName: 对应的英文学名。
     2. language: 提炼一句唯美、治愈的花语（15字以内）。
     3. habit: 简短的生长习性。
     4. alias: 2-3个常见的别名，使用中文顿号"、"分隔，如果没有则留空。

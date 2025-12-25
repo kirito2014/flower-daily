@@ -10,21 +10,23 @@ import {
   saveImageConfig, getImageConfig, testImageConnection, toggleImageProvider, deleteImageConfig 
 } from '@/app/actions/image';
 import { 
-  Loader2, Bot, Image as ImageIcon, Sparkles, Zap, Power, Trash2, Edit2, CheckCircle2, XCircle, Save, Activity
+  Loader2, Bot, Image as ImageIcon, Sparkles, Zap, Power, Trash2, Edit2, CheckCircle2, XCircle, Save, Activity, Info
 } from 'lucide-react';
 
 // === 常量定义 ===
 
 const AI_PROVIDERS = [
-  { id: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat', icon: Sparkles },
-  { id: 'moonshot', name: 'Moonshot (Kimi)', baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k', icon: Bot },
-  { id: 'aliyun', name: 'Aliyun (通义千问)', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-turbo', icon: Zap },
-  { id: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', model: 'gpt-3.5-turbo', icon: Bot },
+  { id: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat', icon: Sparkles, note: '性价比极高，响应速度快，推荐作为主力模型使用。' },
+  { id: 'moonshot', name: 'Moonshot (Kimi)', baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k', icon: Bot, note: '中文理解能力强，适合生成优美、治愈的花语。' },
+  { id: 'aliyun', name: 'Aliyun (通义千问)', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-turbo', icon: Zap, note: '阿里通义千问模型，稳定可靠。' },
+  { id: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', model: 'gpt-3.5-turbo', icon: Bot, note: '国际标准模型，需要确保服务器网络环境可访问。' },
+  // === 恢复：自定义服务 ===
+  { id: 'custom', name: '自定义服务', baseUrl: '', model: '', icon: Bot, note: '兼容 OpenAI 接口协议的其他任意服务商。' },
 ];
 
 const IMG_PROVIDERS = [
-  { id: 'unsplash', name: 'Unsplash', baseUrl: 'https://api.unsplash.com', icon: ImageIcon },
-  { id: 'pexels', name: 'Pexels', baseUrl: 'https://api.pexels.com/v1', icon: ImageIcon },
+  { id: 'unsplash', name: 'Unsplash', baseUrl: 'https://api.unsplash.com', icon: ImageIcon, note: '全球最大的免费高清图库，图片质量极高。' },
+  // { id: 'pexels', name: 'Pexels', baseUrl: 'https://api.pexels.com/v1', icon: ImageIcon, note: '优秀的免费图库，支持视频和图片搜索。' },
 ];
 
 // === 子组件：服务商卡片 ===
@@ -51,6 +53,9 @@ function ProviderCard({ provider, type, config, isActive, onRefresh }: ProviderC
     secretKey: ''  // Image
   });
 
+  // 自定义名称状态
+  const [customName, setCustomName] = useState('');
+
   // 初始化数据
   useEffect(() => {
     if (config) {
@@ -58,8 +63,14 @@ function ProviderCard({ provider, type, config, isActive, onRefresh }: ProviderC
         ...prev,
         baseUrl: config.baseUrl || provider.baseUrl,
         modelName: config.modelName || provider.model || '',
-        // Key 字段通常留空，除非用户想修改
       }));
+      
+      // === 解析自定义名称 ===
+      if (provider.id === 'custom' && config.name) {
+        // 尝试去除 "(自定义服务)" 后缀以回显
+        const match = config.name.match(/^(.*)\(自定义服务\)$/);
+        setCustomName(match ? match[1] : config.name);
+      }
     }
   }, [config, provider]);
 
@@ -87,6 +98,16 @@ function ProviderCard({ provider, type, config, isActive, onRefresh }: ProviderC
       const fd = new FormData();
       fd.append('key', provider.id);
       fd.append('baseUrl', formData.baseUrl);
+      
+      // === 处理名称存储逻辑 ===
+      if (provider.id === 'custom') {
+        // 自定义服务：存储为 "用户输入(自定义服务)"
+        const finalName = customName.trim() ? `${customName.trim()}(自定义服务)` : 'Custom AI(自定义服务)';
+        fd.append('name', finalName);
+      } else {
+        // 标准服务：使用预设名称
+        fd.append('name', provider.name);
+      }
       
       if (type === 'ai') {
         fd.append('apiKey', formData.apiKey);
@@ -116,6 +137,7 @@ function ProviderCard({ provider, type, config, isActive, onRefresh }: ProviderC
       else await deleteImageConfig(provider.id);
       
       setFormData({ ...formData, apiKey: '', accessKey: '', secretKey: '' });
+      setCustomName('');
       onRefresh();
     } finally {
       setLoading(false);
@@ -123,9 +145,7 @@ function ProviderCard({ provider, type, config, isActive, onRefresh }: ProviderC
   };
 
   const handleToggleActive = async () => {
-    // 只有已配置（有ID且有Config记录）的才能激活
     if (!config) return alert('请先配置并保存信息');
-    
     setLoading(true);
     try {
       if (type === 'ai') await toggleAIProvider(provider.id, !isActive);
@@ -142,7 +162,7 @@ function ProviderCard({ provider, type, config, isActive, onRefresh }: ProviderC
   return (
     <div className={`bg-white border rounded-2xl transition-all duration-300 overflow-hidden ${isActive ? 'border-purple-500 shadow-md shadow-purple-100 ring-1 ring-purple-100' : 'border-stone-200 shadow-sm'} ${isExpanded ? 'ring-2 ring-stone-100' : ''}`}>
       
-      {/* === 卡片头部 (始终可见) === */}
+      {/* === 卡片头部 === */}
       <div className="p-5 flex items-center justify-between bg-white">
         <div className="flex items-center gap-4">
           <div className={`p-3 rounded-xl ${isActive ? 'bg-purple-100 text-purple-600' : 'bg-stone-100 text-stone-500'}`}>
@@ -150,7 +170,8 @@ function ProviderCard({ provider, type, config, isActive, onRefresh }: ProviderC
           </div>
           <div>
             <h3 className={`font-bold text-lg ${isActive ? 'text-purple-900' : 'text-stone-700'}`}>
-              {provider.name}
+              {/* 如果是自定义服务且已配置，显示数据库中存储的名字(通常带后缀)；否则显示默认名字 */}
+              {config?.name || provider.name}
             </h3>
             <div className="flex items-center gap-2 mt-0.5">
               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isActive ? 'bg-green-100 text-green-700' : hasConfig ? 'bg-stone-100 text-stone-500' : 'bg-red-50 text-red-400'}`}>
@@ -168,7 +189,6 @@ function ProviderCard({ provider, type, config, isActive, onRefresh }: ProviderC
 
         {/* 右侧操作区 */}
         <div className="flex items-center gap-3">
-          {/* 激活开关 */}
           <div className="flex items-center gap-2 mr-2">
              <span className={`text-xs font-medium ${isActive ? 'text-purple-600' : 'text-stone-400'}`}>
                {isActive ? 'ON' : 'OFF'}
@@ -184,7 +204,6 @@ function ProviderCard({ provider, type, config, isActive, onRefresh }: ProviderC
 
           <div className="h-6 w-px bg-stone-200 mx-1" />
 
-          {/* 编辑按钮 */}
           <button 
             onClick={() => setIsExpanded(!isExpanded)}
             className={`p-2 rounded-lg hover:bg-stone-100 transition text-stone-500 ${isExpanded ? 'bg-stone-100 text-stone-800' : ''}`}
@@ -193,7 +212,6 @@ function ProviderCard({ provider, type, config, isActive, onRefresh }: ProviderC
             <Edit2 size={18} />
           </button>
 
-          {/* 测试按钮 */}
           {hasConfig && (
             <button 
               onClick={handleTest}
@@ -204,7 +222,6 @@ function ProviderCard({ provider, type, config, isActive, onRefresh }: ProviderC
             </button>
           )}
 
-          {/* 删除按钮 */}
           {hasConfig && (
             <button 
               onClick={handleDelete}
@@ -218,9 +235,35 @@ function ProviderCard({ provider, type, config, isActive, onRefresh }: ProviderC
       </div>
 
       {/* === 展开编辑区 === */}
-      <div className={`bg-stone-50/50 border-t border-stone-100 transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
+      <div className={`bg-stone-50/50 border-t border-stone-100 transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'}`}>
         <div className="p-6 space-y-4">
+          
+          {/* === Note 展示区域 === */}
+          {provider.note && (
+            <div className="flex items-start gap-2 p-3 bg-blue-50 text-blue-700 rounded-lg text-xs mb-2">
+              <Info size={16} className="mt-0.5 shrink-0" />
+              <span>{provider.note}</span>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            {/* === 自定义服务名称输入 === */}
+            {provider.id === 'custom' && (
+               <div className="space-y-1.5 md:col-span-2">
+                <label className="text-xs font-bold text-stone-500 uppercase">自定义服务名称</label>
+                <div className="flex items-center gap-2">
+                  <input 
+                    value={customName}
+                    onChange={e => setCustomName(e.target.value)}
+                    placeholder="例如: My Local LLM"
+                    className="flex-1 px-4 py-2 bg-white border border-stone-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-200"
+                  />
+                  <span className="text-xs text-stone-400 whitespace-nowrap">(自定义服务)</span>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-stone-500 uppercase">Base URL (接口地址)</label>
               <input 
@@ -272,7 +315,6 @@ function ProviderCard({ provider, type, config, isActive, onRefresh }: ProviderC
              </div>
           )}
 
-          {/* 底部操作栏 */}
           <div className="flex items-center justify-between pt-2">
             <div className="text-xs text-stone-400">
                {testResult?.message && (
@@ -306,7 +348,6 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
 
   const refreshData = async () => {
-    // 并行获取所有配置
     const aiPromises = AI_PROVIDERS.map(p => getSystemConfig(p.id).then(c => ({ id: p.id, config: c })));
     const imgPromises = IMG_PROVIDERS.map(p => getImageConfig(p.id).then(c => ({ id: p.id, config: c })));
     
@@ -338,14 +379,11 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-10 pb-20">
-      
-      {/* 头部 */}
       <div className="space-y-2">
         <h1 className="text-3xl font-serif font-bold text-stone-800">系统服务配置</h1>
         <p className="text-stone-500">管理 AI 内容生成模型与图库来源，同一类型服务仅允许激活一个。</p>
       </div>
 
-      {/* AI 服务商列表 */}
       <section className="space-y-5">
         <div className="flex items-center gap-2 mb-4">
           <Sparkles className="text-purple-600" size={20} />
@@ -368,7 +406,6 @@ export default function SettingsPage() {
 
       <div className="h-px bg-stone-100" />
 
-      {/* 图片服务商列表 */}
       <section className="space-y-5">
         <div className="flex items-center gap-2 mb-4">
           <ImageIcon className="text-blue-600" size={20} />
@@ -388,7 +425,6 @@ export default function SettingsPage() {
           ))}
         </div>
       </section>
-
     </div>
   );
 }
