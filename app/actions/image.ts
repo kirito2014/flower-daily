@@ -129,7 +129,7 @@ export async function searchUnsplashImages(query: string, page: number = 1) {
   const redirectUri = config.redirectUri || '';
 
   try {
-    const res = await fetch(`${baseUrl}/search/photos?page=${page}&query=${encodeURIComponent(query)}&per_page=12`, {
+    const res = await fetch(`${baseUrl}/search/photos?page=${page}&query=${encodeURIComponent(query)}&per_page=30`, {
       headers: {
         'Authorization': `Client-ID ${config.accessKey}`
       }

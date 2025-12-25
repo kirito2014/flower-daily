@@ -69,7 +69,7 @@ export default function UnsplashSearchModal({ isOpen, onClose, onSelect, initial
         <div className="px-8 py-5 border-b border-stone-100 flex justify-between items-center bg-white">
           <h3 className="text-xl font-serif font-bold text-stone-800 flex items-center gap-2">
             <Search size={22} className="text-purple-600" />
-            Unsplash 图库
+            Unsplash 图库 （只显示前30张图片）
           </h3>
           <button onClick={onClose} className="p-2 hover:bg-stone-100 rounded-full transition"><X size={22} /></button>
         </div>
