@@ -142,7 +142,7 @@ export default function HomePage() {
               className="px-8 py-3 bg-stone-900 text-white rounded-full hover:bg-stone-800 transition-all hover:scale-105 active:scale-95 disabled:opacity-70 flex items-center gap-2 mx-auto shadow-xl"
             >
               {loading ? <Loader2 className="animate-spin w-4 h-4"/> : <Sparkles className="w-4 h-4" />}
-              <span>开始旅程</span>
+              <span>开始旅程 ❀</span>
             </button>
           </motion.div>
         )}
