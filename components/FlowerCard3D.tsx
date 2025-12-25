@@ -356,8 +356,11 @@ export default function FlowerCard3D({ flower, onNext, loading }: FlowerCardProp
 
                     {/* 新增：反面图片信息 */}
                     <div className="text-[10px] text-stone-400 font-mono flex flex-col items-center gap-0.5 opacity-80">
-                        {flower.photographer && <span>Photo by {flower.photographer}</span>}
-                        <span>Image from Unsplash</span>
+                        {flower.photographer && (
+                            <span>
+                                Photo by <a href={`https://unsplash.com/@${flower.photographer}`} target="_blank" rel="noopener noreferrer" className="underline">{flower.photographer}</a> on {flower.sourceUrl ? <a href={flower.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline">Unsplash</a> : "Unsplash"}
+                            </span>
+                        )}
                     </div>
                  </div>
 
