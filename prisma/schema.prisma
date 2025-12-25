@@ -14,6 +14,7 @@ model Flower {
   englishName  String?
   alias        String?  // 新增：别名 (不展示，用于搜索，AI更新)
   imageUrl     String
+  sourceUrl    String?  // 新增：图片来源链接
   photographer String?  // 新增：拍摄者/版权方
   language     String   // 花语
   habit        String   // 习性
@@ -22,13 +23,14 @@ model Flower {
 }
 
 model AppConfig {
-  id        String   @id // 固定为 'global_config'
-  baseUrl   String   // AI API Base URL
-  apiKey    String   // Encrypted API Key
-  modelName String   // e.g. gpt-3.5-turbo
+  id        String   @id @default(cuid())
+  name      String   @default("Custom AI") // 服务商名称
+  baseUrl   String
+  apiKey    String   // 加密存储
+  modelName String
+  isActive  Boolean  @default(false) // 是否激活
   updatedAt DateTime @updatedAt
 }
-
 // === 用户模型 (更新) ===
 model User {
   id           String   @id @default(uuid())
@@ -58,9 +60,18 @@ model Role {
 
 // 新增：图片服务配置
 model ImageConfig {
-  id        String   @id // 固定为 'image_config'
-  accessKey String   // Unsplash Access Key (Encrypted)
-  secretKey String?  // Unsplash Secret Key (Encrypted, optional for search)
+  id        String   @id @default(cuid())
+  name      String   @default("Unsplash") // 服务商名称
+  accessKey String   // 加密存储
+  secretKey String?  // 加密存储
   provider  String   @default("unsplash")
+  isActive  Boolean  @default(false) // 是否激活
+  updatedAt DateTime @updatedAt
+}
+
+// 新增：系统密钥 (单例)
+model SystemKey {
+  id        String   @id @default("sys_key")
+  key       String   // 当前使用的加密密钥 (明文存储于DB，靠DB权限保护)
   updatedAt DateTime @updatedAt
 }

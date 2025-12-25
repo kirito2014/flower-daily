@@ -100,7 +100,8 @@ export default async function AdminLayout({
 
       <main className="flex-1 ml-64 min-h-screen flex flex-col">
         {/* Header */}
-        <header className="sticky top-0 z-20 px-8 py-4 flex justify-end items-center bg-stone-100/80 backdrop-blur-sm gap-4">
+        {/* FIX: 将 z-index 调整为 200，确保高于编辑模式下的卡片(z-50)和列表项(z-100) */}
+        <header className="sticky top-0 z-[200] px-8 py-4 flex justify-end items-center bg-stone-100/80 backdrop-blur-sm gap-4">
            
            {/* === 改动：使用 HitokotoBox 客户端组件 === */}
            <HitokotoBox initialText={hitokoto} />

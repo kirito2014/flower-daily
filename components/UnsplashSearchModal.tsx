@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom'; // === 引入 createPortal ===
 import { Search, X, Loader2, Download } from 'lucide-react';
 import { searchUnsplashImages } from '@/app/actions/image';
 
@@ -24,13 +25,18 @@ export default function UnsplashSearchModal({ isOpen, onClose, onSelect, initial
   const [results, setResults] = useState<UnsplashImage[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  
+  // === 新增：组件挂载状态，防止服务端渲染 (SSR) 时找不到 document ===
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // 核心修复：当 initialQuery 变化或弹窗打开时，同步更新搜索框内容
   useEffect(() => {
     if (isOpen) {
       setQuery(initialQuery);
-      // 可选：如果想打开自动搜索，可在此处调用 handleSearch
-      // if (initialQuery) handleSearch(initialQuery);
     }
   }, [isOpen, initialQuery]);
 
@@ -51,9 +57,12 @@ export default function UnsplashSearchModal({ isOpen, onClose, onSelect, initial
     }
   };
 
-  if (!isOpen) return null;
+  // 如果未挂载或未打开，不渲染任何内容
+  if (!isOpen || !mounted) return null;
 
-  return (
+  // === 核心修复：使用 createPortal 将模态框渲染到 body 层级 ===
+  // 这样可以无视父组件的 overflow:hidden 或 transform 限制，实现真正的全屏覆盖
+  return createPortal(
     <div className="fixed inset-0 z-[1050] flex items-center justify-center bg-black/40 backdrop-blur-md animate-in fade-in duration-200">
       {/* 修改：宽度调整为 max-w-7xl，高度 h-[90vh]，提供更大的视野 */}
       <div className="bg-white w-[95%] max-w-7xl h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-stone-200">
@@ -139,6 +148,7 @@ export default function UnsplashSearchModal({ isOpen, onClose, onSelect, initial
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body // 渲染目标节点
   );
 }
