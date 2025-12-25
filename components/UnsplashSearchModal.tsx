@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom'; // === 引入 createPortal ===
+import { createPortal } from 'react-dom'; 
 import { Search, X, Loader2, Download } from 'lucide-react';
 import { searchUnsplashImages } from '@/app/actions/image';
 
@@ -10,13 +10,15 @@ interface UnsplashImage {
   thumb: string;
   full: string;
   photographer: string;
+  htmlLink: string; // === 新增：源链接字段 ===
   downloadLocation?: string;
 }
 
 interface UnsplashSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelect: (url: string, photographer: string) => void;
+  // === 修改：onSelect 增加 sourceUrl 参数 ===
+  onSelect: (url: string, photographer: string, sourceUrl: string) => void;
   initialQuery?: string;
 }
 
@@ -26,14 +28,12 @@ export default function UnsplashSearchModal({ isOpen, onClose, onSelect, initial
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   
-  // === 新增：组件挂载状态，防止服务端渲染 (SSR) 时找不到 document ===
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // 核心修复：当 initialQuery 变化或弹窗打开时，同步更新搜索框内容
   useEffect(() => {
     if (isOpen) {
       setQuery(initialQuery);
@@ -48,7 +48,8 @@ export default function UnsplashSearchModal({ isOpen, onClose, onSelect, initial
     setHasSearched(true);
     try {
       const images = await searchUnsplashImages(q);
-      setResults(images);
+      // 类型断言或确保后端返回字段匹配，这里假设 action 返回了 htmlLink
+      setResults(images as unknown as UnsplashImage[]);
     } catch (error) {
       console.error(error);
       alert('搜索失败，请确保已在设置中配置 Unsplash API Key');
@@ -57,14 +58,10 @@ export default function UnsplashSearchModal({ isOpen, onClose, onSelect, initial
     }
   };
 
-  // 如果未挂载或未打开，不渲染任何内容
   if (!isOpen || !mounted) return null;
 
-  // === 核心修复：使用 createPortal 将模态框渲染到 body 层级 ===
-  // 这样可以无视父组件的 overflow:hidden 或 transform 限制，实现真正的全屏覆盖
   return createPortal(
     <div className="fixed inset-0 z-[1050] flex items-center justify-center bg-black/40 backdrop-blur-md animate-in fade-in duration-200">
-      {/* 修改：宽度调整为 max-w-7xl，高度 h-[90vh]，提供更大的视野 */}
       <div className="bg-white w-[95%] max-w-7xl h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-stone-200">
         
         {/* Header */}
@@ -106,29 +103,26 @@ export default function UnsplashSearchModal({ isOpen, onClose, onSelect, initial
               <p>正在连接 Unsplash...</p>
             </div>
           ) : results.length > 0 ? (
-            // 修改：Grid 布局调整，大屏显示 5 列
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
               {results.map((img) => (
                 <div 
                   key={img.id} 
                   className="group relative aspect-[3/4] rounded-2xl overflow-hidden cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 bg-stone-200"
                   onClick={() => {
-                    onSelect(img.full, img.photographer);
+                    // === 修改：传递 htmlLink 作为 sourceUrl ===
+                    onSelect(img.full, img.photographer, img.htmlLink);
                     onClose();
                   }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={img.thumb} alt="Unsplash" className="w-full h-full object-cover" />
                   
-                  {/* Hover Overlay */}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
                   
-                  {/* Info Tag */}
                   <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-y-2 group-hover:translate-y-0">
                     <p className="text-xs font-medium truncate">@{img.photographer}</p>
                   </div>
                   
-                  {/* Select Icon */}
                   <div className="absolute top-3 right-3 bg-white text-stone-900 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100 shadow-lg">
                     <Download size={16} />
                   </div>
@@ -149,6 +143,6 @@ export default function UnsplashSearchModal({ isOpen, onClose, onSelect, initial
         </div>
       </div>
     </div>,
-    document.body // 渲染目标节点
+    document.body
   );
 }

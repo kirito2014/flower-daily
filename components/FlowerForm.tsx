@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { createFlower, updateFlower, generateFlowerContent } from '@/app/actions/admin';
 import { Flower } from '@prisma/client';
-import { Loader2, Sparkles, Search, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Sparkles, Search, Image as ImageIcon, Link as LinkIcon } from 'lucide-react';
 import UnsplashSearchModal from '@/components/UnsplashSearchModal';
 
 interface FlowerFormProps {
@@ -21,6 +21,7 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
   const [englishName, setEnglishName] = useState(flower?.englishName || '');
   const [alias, setAlias] = useState(flower?.alias || '');
   const [imageUrl, setImageUrl] = useState(flower?.imageUrl || '');
+  const [sourceUrl, setSourceUrl] = useState(flower?.sourceUrl || ''); // === 新增：源链接状态 ===
   const [photographer, setPhotographer] = useState(flower?.photographer || '');
   const [language, setLanguage] = useState(flower?.language || '');
   const [habit, setHabit] = useState(flower?.habit || '');
@@ -34,6 +35,7 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
     formData.append('englishName', englishName);
     formData.append('alias', alias);
     formData.append('imageUrl', imageUrl);
+    formData.append('sourceUrl', sourceUrl); // === 新增：提交源链接 ===
     formData.append('photographer', photographer);
     formData.append('language', language);
     formData.append('habit', habit);
@@ -45,7 +47,7 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
         await createFlower(formData);
         // 重置表单
         setName(''); setEnglishName(''); setAlias(''); 
-        setImageUrl(''); setPhotographer(''); 
+        setImageUrl(''); setSourceUrl(''); setPhotographer(''); 
         setLanguage(''); setHabit('');
       }
       onSuccess();
@@ -129,37 +131,50 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
         {/* 图片链接 + Unsplash + 拍摄者 */}
         <div className="space-y-1.5">
           <label className="text-xs font-bold text-stone-500 uppercase tracking-wider ml-1">图片来源</label>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1 flex gap-2">
-                <div className="relative flex-1">
-                    <input 
-                    name="imageUrl" 
-                    required 
-                    placeholder="https://images.unsplash.com/..." 
-                    value={imageUrl}
-                    onChange={e => setImageUrl(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:ring-2 focus:ring-stone-200 transition font-mono text-xs text-stone-600"
-                    />
-                    <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={14} />
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1 flex gap-2">
+                    <div className="relative flex-1">
+                        <input 
+                        name="imageUrl" 
+                        required 
+                        placeholder="https://images.unsplash.com/..." 
+                        value={imageUrl}
+                        onChange={e => setImageUrl(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:ring-2 focus:ring-stone-200 transition font-mono text-xs text-stone-600"
+                        />
+                        <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={14} />
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setShowUnsplash(true)}
+                        className="px-3 py-2 bg-stone-100 border border-stone-200 text-stone-600 rounded-xl hover:bg-white hover:border-stone-300 hover:shadow-sm transition flex items-center justify-center"
+                        title="在 Unsplash 搜索图片"
+                    >
+                        <Search size={18} />
+                    </button>
                 </div>
-                <button
-                    type="button"
-                    onClick={() => setShowUnsplash(true)}
-                    className="px-3 py-2 bg-stone-100 border border-stone-200 text-stone-600 rounded-xl hover:bg-white hover:border-stone-300 hover:shadow-sm transition flex items-center justify-center"
-                    title="在 Unsplash 搜索图片"
-                >
-                    <Search size={18} />
-                </button>
+                
+                <div className="w-full sm:w-1/3 relative">
+                    <input 
+                        name="photographer"
+                        placeholder="拍摄者 (可选)" 
+                        value={photographer}
+                        onChange={e => setPhotographer(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:ring-2 focus:ring-stone-200 transition text-xs text-stone-600"
+                    />
+                </div>
             </div>
-            
-            <div className="w-full sm:w-1/3 relative">
+            {/* 新增：Source URL 显示 (只读/可选编辑) */}
+            <div className="relative">
                 <input 
-                    name="photographer"
-                    placeholder="拍摄者 (可选)" 
-                    value={photographer}
-                    onChange={e => setPhotographer(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:ring-2 focus:ring-stone-200 transition text-xs text-stone-600"
+                    name="sourceUrl"
+                    placeholder="图片源链接 (Unsplash 页面地址)" 
+                    value={sourceUrl}
+                    onChange={e => setSourceUrl(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-stone-50 border border-stone-200 rounded-lg outline-none focus:ring-2 focus:ring-stone-200 transition font-mono text-[10px] text-stone-400"
                 />
+                <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={12} />
             </div>
           </div>
         </div>
@@ -200,15 +215,15 @@ export default function FlowerForm({ flower, onSuccess }: FlowerFormProps) {
         </button>
       </form>
 
-      {/* Unsplash 弹窗：修复 auto-fill，使用 state 传递 */}
+      {/* Unsplash 弹窗 */}
       <UnsplashSearchModal 
         isOpen={showUnsplash}
         onClose={() => setShowUnsplash(false)}
-        // 核心修复：这里直接传当前的 state，配合 Modal 内的 useEffect 实现同步
         initialQuery={englishName || name || ''} 
-        onSelect={(url, user) => {
+        onSelect={(url, user, source) => {
           setImageUrl(url);
           setPhotographer(user);
+          setSourceUrl(source); // === 新增：保存源链接 ===
         }}
       />
     </>
