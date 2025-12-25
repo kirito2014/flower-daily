@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom'; 
-import { Search, X, Loader2, Download } from 'lucide-react';
+import { Search, X, Loader2, Download, Filter } from 'lucide-react';
 import { searchUnsplashImages } from '@/app/actions/image';
 
 interface UnsplashImage {
@@ -29,6 +29,10 @@ export default function UnsplashSearchModal({ isOpen, onClose, onSelect, initial
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   
+  // === 新增：筛选状态 ===
+  const [orientation, setOrientation] = useState('');
+  const [license, setLicense] = useState('');
+
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -38,6 +42,11 @@ export default function UnsplashSearchModal({ isOpen, onClose, onSelect, initial
   useEffect(() => {
     if (isOpen) {
       setQuery(initialQuery);
+      // 重置筛选
+      setOrientation('');
+      setLicense('');
+      setResults([]);
+      setHasSearched(false);
     }
   }, [isOpen, initialQuery]);
 
@@ -48,7 +57,8 @@ export default function UnsplashSearchModal({ isOpen, onClose, onSelect, initial
     setLoading(true);
     setHasSearched(true);
     try {
-      const images = await searchUnsplashImages(q);
+      // === 修改：传递筛选参数 ===
+      const images = await searchUnsplashImages(q, 1, orientation, license);
       // 类型断言，确保后端返回包含 photographerUrl
       setResults(images as unknown as UnsplashImage[]);
     } catch (error) {
@@ -69,13 +79,13 @@ export default function UnsplashSearchModal({ isOpen, onClose, onSelect, initial
         <div className="px-8 py-5 border-b border-stone-100 flex justify-between items-center bg-white">
           <h3 className="text-xl font-serif font-bold text-stone-800 flex items-center gap-2">
             <Search size={22} className="text-purple-600" />
-            Unsplash 图库 （只显示前30张图片）
+            Unsplash 图库
           </h3>
           <button onClick={onClose} className="p-2 hover:bg-stone-100 rounded-full transition"><X size={22} /></button>
         </div>
 
-        {/* Search Bar */}
-        <div className="p-6 bg-stone-50 border-b border-stone-100 flex gap-3">
+        {/* Search Bar & Filters */}
+        <div className="p-6 bg-stone-50 border-b border-stone-100 flex flex-col md:flex-row gap-3">
           <div className="relative flex-1">
             <input 
               type="text" 
@@ -87,13 +97,38 @@ export default function UnsplashSearchModal({ isOpen, onClose, onSelect, initial
               autoFocus
             />
           </div>
-          <button 
-            onClick={() => handleSearch()}
-            disabled={loading}
-            className="px-8 py-3 bg-stone-900 text-white rounded-xl hover:bg-stone-800 transition disabled:opacity-50 font-bold text-base flex items-center gap-2"
-          >
-            {loading ? <Loader2 className="animate-spin" /> : '搜索图片'}
-          </button>
+          
+          {/* === 新增：筛选下拉框 === */}
+          <div className="flex gap-3">
+            <select
+              value={orientation}
+              onChange={(e) => setOrientation(e.target.value)}
+              className="px-4 py-3 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition text-stone-700 bg-white cursor-pointer"
+            >
+              <option value="">全部方向</option>
+              <option value="landscape">横屏 (Landscape)</option>
+              <option value="portrait">竖屏 (Portrait)</option>
+              <option value="squarish">方形 (Squarish)</option>
+            </select>
+
+            <select
+              value={license}
+              onChange={(e) => setLicense(e.target.value)}
+              className="px-4 py-3 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition text-stone-700 bg-white cursor-pointer"
+            >
+              <option value="">全部协议</option>
+              <option value="creative_commons">Creative Commons</option>
+              <option value="editorial">编辑用途 (Editorial)</option>
+            </select>
+
+            <button 
+              onClick={() => handleSearch()}
+              disabled={loading}
+              className="px-6 py-3 bg-stone-900 text-white rounded-xl hover:bg-stone-800 transition disabled:opacity-50 font-bold text-base flex items-center gap-2 whitespace-nowrap"
+            >
+              {loading ? <Loader2 className="animate-spin" /> : '搜索'}
+            </button>
+          </div>
         </div>
 
         {/* Results Grid */}
@@ -112,7 +147,7 @@ export default function UnsplashSearchModal({ isOpen, onClose, onSelect, initial
                   onClick={() => {
                     // === 修改：传递 htmlLink (图片页) 和 photographerUrl (摄影师页) ===
                     onSelect(img.full, img.photographer, img.htmlLink, img.photographerUrl);
-                    onClose(); 
+                    onClose();
                   }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -132,7 +167,7 @@ export default function UnsplashSearchModal({ isOpen, onClose, onSelect, initial
             </div>
           ) : hasSearched ? (
             <div className="h-full flex flex-col items-center justify-center text-stone-400">
-              <p className="text-lg">未找到相关图片，试着换个关键词？</p>
+              <p className="text-lg">未找到相关图片，试着换个关键词或筛选条件？</p>
             </div>
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-stone-300 select-none">

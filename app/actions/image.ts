@@ -114,8 +114,13 @@ export async function testImageConnection(key: string = 'image_config') {
   }
 }
 
-// === 搜索 Unsplash ===
-export async function searchUnsplashImages(query: string, page: number = 1) {
+// === 搜索 Unsplash (修改版：支持 orientation 和 license) ===
+export async function searchUnsplashImages(
+  query: string, 
+  page: number = 1, 
+  orientation?: string, 
+  license?: string
+) {
   let config = await getImageConfig('unsplash');
   if (!config?.accessKey) {
      config = await getImageConfig('image_config');
@@ -129,7 +134,21 @@ export async function searchUnsplashImages(query: string, page: number = 1) {
   const redirectUri = config.redirectUri || '';
 
   try {
-    const res = await fetch(`${baseUrl}/search/photos?page=${page}&query=${encodeURIComponent(query)}&per_page=30`, {
+    // 构造查询参数
+    const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('query', query);
+    params.append('per_page', '30'); // 按照您的要求设置为 30
+    
+    // === 新增：添加筛选参数 ===
+    if (orientation && orientation !== '') {
+      params.append('orientation', orientation);
+    }
+    if (license && license !== '') {
+      params.append('license', license);
+    }
+
+    const res = await fetch(`${baseUrl}/search/photos?${params.toString()}`, {
       headers: {
         'Authorization': `Client-ID ${config.accessKey}`
       }
