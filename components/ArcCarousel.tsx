@@ -2,11 +2,11 @@
 'use client';
 
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import Link from 'next/link'; // ✅ 新增：引入 Link
+import Link from 'next/link';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Swiper as SwiperType } from 'swiper';
 import { EffectCreative, Autoplay, Mousewheel } from 'swiper/modules';
-import { ExternalLink, Search, Sprout, Package, Github } from 'lucide-react'; // ✅ 新增：引入 Package, Github
+import { ExternalLink, Search, Sprout, Package, Github } from 'lucide-react';
 import { Flower } from '@prisma/client';
 
 import 'swiper/css';
@@ -43,7 +43,6 @@ export default function UltimateCardCarousel({ flowers = [], onNext }: ArcCarous
   
   const autoplayTimer = useRef<NodeJS.Timeout | null>(null); 
 
-  // ✅ 补充环境变量常量
   const siteName = process.env.NEXT_PUBLIC_SITE_NAME || 'Flower Daily';
   const version = process.env.NEXT_PUBLIC_SITE_VERSION || 'v1.1.0';
   const repoUrl = process.env.NEXT_PUBLIC_GITHUB_REPO || 'https://github.com/kirito2014/flower-daily';
@@ -222,23 +221,22 @@ export default function UltimateCardCarousel({ flowers = [], onNext }: ArcCarous
                         <div className="relative z-10 w-full h-full p-6 flex flex-col justify-between text-white select-none">
                           <div className={`transition-all duration-700 flex flex-col items-center ${isExpanded ? 'translate-y-6 opacity-100' : 'translate-y-[-20px] opacity-0'}`}>
                               <h2 className="text-3xl font-serif font-bold tracking-widest text-shadow">{item.data.name}</h2>
-                              <p className="text-xs uppercase tracking-[0.3em] opacity-70 mt-2 font-light">{item.data.englishName}</p>
+                              <p className="text-xs  tracking-[0.3em] opacity-70 mt-2 font-light">{item.data.englishName}</p>
                           </div>
 
+                          {/* 收起状态下的底部信息 */}
                           <div className={`transition-all duration-500 ${isExpanded ? 'opacity-0 translate-x-[-20px]' : (isVisible ? 'opacity-100' : 'opacity-0')}`}>
                               <h3 className="text-2xl font-serif font-bold tracking-wide">{item.data.name}</h3>
-                              <a 
-                                href={item.data.pgsourceUrl || '#'} 
-                                target="_blank" rel="noopener noreferrer"
-                                className="text-[10px] opacity-60 hover:opacity-100 flex items-center gap-1 mt-2 transition-opacity w-fit"
-                                onClick={(e) => e.stopPropagation()}
-                              >
+                              {/* 收起时显示简单的 Photo by */}
+                              <div className="text-[10px] opacity-60 flex items-center gap-1 mt-2">
                                 <span>©</span>
                                 <span className="underline decoration-white/20 underline-offset-4">{item.data.photographer || 'Unsplash'}</span>
-                              </a>
+                              </div>
                           </div>
 
-                          <div className={`space-y-5 transition-all duration-700 delay-100 absolute bottom-6 left-6 right-6 ${isExpanded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
+                          {/* 展开状态下的详细信息 */}
+                          {/* ✅ 修正动画：移除 delay，确保背景和内容同步出现 */}
+                          <div className={`space-y-4 transition-all duration-500 absolute bottom-6 left-6 right-6 ${isExpanded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
                               <div className="bg-white/10 backdrop-blur-md p-5 rounded-xl border border-white/5 text-sm leading-relaxed shadow-lg">
                                   <p className="flex gap-2"><span className="text-white/40 min-w-[3em]">花语</span> <span className="text-white/90">{item.data.language}</span></p>
                                   <div className="h-px bg-white/10 my-3" />
@@ -246,8 +244,28 @@ export default function UltimateCardCarousel({ flowers = [], onNext }: ArcCarous
                               </div>
 
                               <div className="flex justify-between items-center px-1">
-                                <div className="flex gap-3 text-[10px] uppercase tracking-wider opacity-40 font-medium">
-                                    <a href={item.data.sourceUrl || '#'} target="_blank" className="hover:text-white transition-colors">Image Source</a>
+                                {/* ✅ 修改：显示 Photo by xxx on Unsplash */}
+                                <div className="text-[10px]  tracking-wider opacity-60 font-medium flex items-center gap-1">
+                                    <span>Photo by</span>
+                                    <a 
+                                      href={item.data.pgsourceUrl || '#'} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="hover:text-white underline decoration-white/30 underline-offset-2 transition-colors"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      {item.data.photographer || 'Anonymous'}
+                                    </a>
+                                    <span>on</span>
+                                    <a 
+                                      href={item.data.sourceUrl || 'https://unsplash.com'} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="hover:text-white underline decoration-white/30 underline-offset-2 transition-colors"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      Unsplash
+                                    </a>
                                 </div>
                               </div>
 
@@ -285,7 +303,6 @@ export default function UltimateCardCarousel({ flowers = [], onNext }: ArcCarous
         </Swiper>
       </div>
 
-      {/* ✅ 新增：Footer (与单卡模式一致) */}
       <footer className="absolute bottom-6 w-full flex justify-center items-center text-xs text-stone-400 z-50 pointer-events-none">
           <div className="flex items-center gap-4 bg-white/50 backdrop-blur-sm px-4 py-2 rounded-full border border-stone-200/50 shadow-sm pointer-events-auto opacity-60 hover:opacity-100 transition-opacity">
               <Link 
