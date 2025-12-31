@@ -219,15 +219,18 @@ export default function UltimateCardCarousel({ flowers = [], onNext }: ArcCarous
                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
 
                         <div className="relative z-10 w-full h-full p-6 flex flex-col justify-between text-white select-none">
+                          {/* ✅ 核心修改：移除容器背景，改用强烈的 drop-shadow
+                             drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] 模拟 iOS 锁屏字体的反差效果
+                             确保在纯白背景下依然清晰可见
+                          */}
                           <div className={`transition-all duration-700 flex flex-col items-center ${isExpanded ? 'translate-y-6 opacity-100' : 'translate-y-[-20px] opacity-0'}`}>
-                              <h2 className="text-3xl font-serif font-bold tracking-widest text-shadow">{item.data.name}</h2>
-                              <p className="text-xs  tracking-[0.3em] opacity-70 mt-2 font-light">{item.data.englishName}</p>
+                              <h2 className="text-3xl font-serif font-bold tracking-widest text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">{item.data.name}</h2>
+                              <p className="text-xs   tracking-[0.3em] text-white/90 mt-2 font-light drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">{item.data.englishName}</p>
                           </div>
 
                           {/* 收起状态下的底部信息 */}
                           <div className={`transition-all duration-500 ${isExpanded ? 'opacity-0 translate-x-[-20px]' : (isVisible ? 'opacity-100' : 'opacity-0')}`}>
-                              <h3 className="text-2xl font-serif font-bold tracking-wide">{item.data.name}</h3>
-                              {/* 收起时显示简单的 Photo by */}
+                              <h3 className="text-2xl font-serif font-bold tracking-wide drop-shadow-md">{item.data.name}</h3>
                               <div className="text-[10px] opacity-60 flex items-center gap-1 mt-2">
                                 <span>©</span>
                                 <span className="underline decoration-white/20 underline-offset-4">{item.data.photographer || 'Unsplash'}</span>
@@ -235,14 +238,7 @@ export default function UltimateCardCarousel({ flowers = [], onNext }: ArcCarous
                           </div>
 
                           {/* 展开状态下的详细信息 */}
-                          {/* ✅ 修正动画：
-                              1. duration-700 与标题同步
-                              2. ease-out 加速出现
-                              3. transform-gpu 强制硬件加速解决渲染滞后 
-                          */}
                           <div className={`space-y-4 transition-all duration-700 ease-out transform-gpu absolute bottom-6 left-6 right-6 ${isExpanded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
-                              {/* ✅ 增强背景：bg-white/20 (提升可见度)
-                              */}
                               <div className="bg-white/20 backdrop-blur-md p-5 rounded-xl border border-white/10 text-sm leading-relaxed shadow-lg">
                                   <p className="flex gap-2"><span className="text-white/40 min-w-[3em]">花语</span> <span className="text-white/90">{item.data.language}</span></p>
                                   <div className="h-px bg-white/10 my-3" />
