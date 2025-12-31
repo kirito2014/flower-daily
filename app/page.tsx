@@ -1,6 +1,7 @@
+/* app/page.tsx */
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Flower } from '@prisma/client';
@@ -8,6 +9,7 @@ import FlowerCard3D from '@/components/FlowerCard3D';
 import UltimateCardCarousel from '@/components/ArcCarousel';
 import { Loader2, Sparkles, Github, ExternalLink, Package, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getSystemConfigsByKeys } from '@/app/actions/systemConfig';
 
 export default function HomePage() {
   const [viewState, setViewState] = useState<'intro' | 'card'>('intro');
@@ -18,9 +20,48 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [finishedData, setFinishedData] = useState<string | null>(null);
   
+  // 存储搜索配置
+  const [searchConfig, setSearchConfig] = useState({
+    url: 'https://baike.baidu.com/item/',
+    name: '百度百科'
+  });
+  
   const router = useRouter();
   const clickCountRef = useRef(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 初始化加载配置
+  useEffect(() => {
+    const initSystemConfig = async () => {
+      const configs = await getSystemConfigsByKeys([
+        'main_display_mode', 
+        'search_engine_url', 
+        'search_engine_name'
+      ]);
+
+      // 🔍 调试日志：查看数据库返回了什么
+      console.log('=== HomePage System Configs ===', configs);
+      console.log('Key "search_engine_url":', configs['search_engine_url']);
+      console.log('Key "search_engine_name":', configs['search_engine_name']);
+
+      // 1. 设置默认显示模式 (1=画廊, 2=卡片)
+      if (configs['main_display_mode'] === '1') {
+        setViewMode('carousel');
+      } else {
+        setViewMode('single');
+      }
+
+      // 2. 设置搜索引擎配置
+      const newSearchConfig = {
+        url: configs['search_engine_url'] || 'https://baike.baidu.com/item/',
+        name: configs['search_engine_name'] || '百度百科'
+      };
+      
+      console.log('=== Applied Search Config ===', newSearchConfig);
+      setSearchConfig(newSearchConfig);
+    };
+    initSystemConfig();
+  }, []);
 
   const handleEggClick = () => {
     clickCountRef.current += 1;
@@ -89,6 +130,11 @@ export default function HomePage() {
                 return [...prev, ...newFlowers];
              });
              setSeenIds(prev => [...prev, ...data.list.map((f: Flower) => f.id)]);
+             
+             // 如果当前没有单卡数据，初始化第一张，确保可切回单卡
+             if (!currentFlower && data.list.length > 0) {
+               setCurrentFlower(data.list[0]);
+             }
          }
          setLoading(false);
          if (viewState === 'intro') setViewState('card');
@@ -115,7 +161,11 @@ export default function HomePage() {
   };
 
   const handleStart = () => {
-    fetchSingleFlower();
+    if (viewMode === 'carousel') {
+      fetchBatchFlowers();
+    } else {
+      fetchSingleFlower();
+    }
   };
 
   const toggleViewMode = () => {
@@ -124,6 +174,15 @@ export default function HomePage() {
     
     if (newMode === 'carousel' && flowerList.length < 10) {
         fetchBatchFlowers();
+    }
+    
+    // 切回单卡模式时的保护逻辑
+    if (newMode === 'single' && !currentFlower) {
+      if (flowerList.length > 0) {
+        setCurrentFlower(flowerList[0]);
+      } else {
+        fetchSingleFlower();
+      }
     }
   };
 
@@ -152,16 +211,14 @@ export default function HomePage() {
          <span className="text-[25vw] font-serif font-bold text-black">FLOWER</span>
       </div>
 
-      {/* ✅ 修改：右上角切换按钮尺寸优化 */}
       {viewState === 'card' && (
         <button
           onClick={toggleViewMode}
           className="absolute top-4 right-4 z-50 p-2 bg-white/80 backdrop-blur-md border border-stone-200 rounded-full shadow-md hover:scale-105 transition-all text-stone-500 hover:text-stone-900 group"
         >
-          {/* 图标尺寸减小到 w-5 h-5 */}
           <Layers className={`w-5 h-5 ${viewMode === 'carousel' ? 'text-blue-500' : ''}`} />
           <span className="absolute right-12 top-1/2 -translate-y-1/2 bg-stone-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-            {viewMode === 'single' ? '画廊模式' : '卡片模式'}
+            {viewMode === 'single' ? 'Switch to Gallery' : 'Switch to Card'}
           </span>
         </button>
       )}
@@ -201,17 +258,19 @@ export default function HomePage() {
             {viewMode === 'single' && currentFlower ? (
               <FlowerCard3D flower={currentFlower} onNext={fetchSingleFlower} loading={loading} />
             ) : (
-              <UltimateCardCarousel flowers={flowerList} onNext={fetchBatchFlowers} />
+              <UltimateCardCarousel 
+                flowers={flowerList} 
+                onNext={fetchBatchFlowers} 
+                searchConfig={searchConfig}
+              />
             )}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ✅ 确保：单卡模式 Footer 包含跳转后台 (Login) 和 GitHub */}
       {viewState === 'card' && viewMode === 'single' && (
         <footer className="absolute bottom-6 w-full flex justify-center items-center text-xs text-stone-400 z-50 pointer-events-none">
           <div className="flex items-center gap-4 bg-white/50 backdrop-blur-sm px-4 py-2 rounded-full border border-stone-200/50 shadow-sm pointer-events-auto opacity-60 hover:opacity-100 transition-opacity">
-              {/* 跳转后台 */}
               <Link 
                 href="/login" 
                 className="font-serif font-medium text-stone-500 hover:text-stone-800 transition-colors"
@@ -226,7 +285,6 @@ export default function HomePage() {
               </span>
               <span className="w-px h-3 bg-stone-300"></span>
               
-              {/* 跳转仓库 */}
               <a 
                   href={repoUrl} 
                   target="_blank" 

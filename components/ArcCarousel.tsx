@@ -17,9 +17,15 @@ type CarouselItem =
   | { type: 'real'; data: Flower }
   | { type: 'placeholder'; id: string };
 
+interface SearchConfig {
+  url: string;
+  name: string;
+}
+
 interface ArcCarouselProps {
   flowers: Flower[];
   onNext: () => void;
+  searchConfig?: SearchConfig;
 }
 
 const CONFIG = {
@@ -34,7 +40,7 @@ const CONFIG = {
 
 const TOTAL_SLIDES = 10;
 
-export default function UltimateCardCarousel({ flowers = [], onNext }: ArcCarouselProps) {
+export default function UltimateCardCarousel({ flowers = [], onNext, searchConfig }: ArcCarouselProps) {
   const swiperRef = useRef<SwiperType | null>(null);
   const [mounted, setMounted] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -42,6 +48,19 @@ export default function UltimateCardCarousel({ flowers = [], onNext }: ArcCarous
   const [activeIndex, setActiveIndex] = useState(0); 
   
   const autoplayTimer = useRef<NodeJS.Timeout | null>(null); 
+
+  // ✅ 使用传进来的配置，增加日志验证
+  const currentSearchConfig = searchConfig || {
+    url: 'https://baike.baidu.com/item/',
+    name: '百度百科'
+  };
+  
+  // 🔍 调试日志
+  useEffect(() => {
+    if (mounted) {
+      console.log('ArcCarousel Search Config:', currentSearchConfig);
+    }
+  }, [mounted, currentSearchConfig]);
 
   const siteName = process.env.NEXT_PUBLIC_SITE_NAME || 'Flower Daily';
   const version = process.env.NEXT_PUBLIC_SITE_VERSION || 'v1.1.0';
@@ -219,16 +238,11 @@ export default function UltimateCardCarousel({ flowers = [], onNext }: ArcCarous
                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
 
                         <div className="relative z-10 w-full h-full p-6 flex flex-col justify-between text-white select-none">
-                          {/* ✅ 核心修改：移除容器背景，改用强烈的 drop-shadow
-                             drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] 模拟 iOS 锁屏字体的反差效果
-                             确保在纯白背景下依然清晰可见
-                          */}
                           <div className={`transition-all duration-700 flex flex-col items-center ${isExpanded ? 'translate-y-6 opacity-100' : 'translate-y-[-20px] opacity-0'}`}>
                               <h2 className="text-3xl font-serif font-bold tracking-widest text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">{item.data.name}</h2>
-                              <p className="text-xs   tracking-[0.3em] text-white/90 mt-2 font-light drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">{item.data.englishName}</p>
+                              <p className="text-xs  tracking-[0.3em] text-white/90 mt-2 font-light drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">{item.data.englishName}</p>
                           </div>
 
-                          {/* 收起状态下的底部信息 */}
                           <div className={`transition-all duration-500 ${isExpanded ? 'opacity-0 translate-x-[-20px]' : (isVisible ? 'opacity-100' : 'opacity-0')}`}>
                               <h3 className="text-2xl font-serif font-bold tracking-wide drop-shadow-md">{item.data.name}</h3>
                               <div className="text-[10px] opacity-60 flex items-center gap-1 mt-2">
@@ -237,7 +251,6 @@ export default function UltimateCardCarousel({ flowers = [], onNext }: ArcCarous
                               </div>
                           </div>
 
-                          {/* 展开状态下的详细信息 */}
                           <div className={`space-y-4 transition-all duration-700 ease-out transform-gpu absolute bottom-6 left-6 right-6 ${isExpanded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
                               <div className="bg-white/20 backdrop-blur-md p-5 rounded-xl border border-white/10 text-sm leading-relaxed shadow-lg">
                                   <p className="flex gap-2"><span className="text-white/40 min-w-[3em]">花语</span> <span className="text-white/90">{item.data.language}</span></p>
@@ -270,14 +283,16 @@ export default function UltimateCardCarousel({ flowers = [], onNext }: ArcCarous
                                 </div>
                               </div>
 
+                              {/* ✅ 修复：正确渲染动态配置的名称 */}
                               <a 
-                                href={`https://baike.baidu.com/item/${encodeURIComponent(item.data.name)}`}
+                                href={`${currentSearchConfig.url}${encodeURIComponent(item.data.name)}`}
                                 target="_blank" rel="noopener noreferrer"
                                 className="group w-full py-3 bg-white text-black rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-stone-200 transition-all active:scale-95 shadow-xl"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <Search size={14} className="group-hover:scale-110 transition-transform"/>
-                                <span>百度百科</span>
+                                {/* ✅ 显示动态名称 */}
+                                <span>{currentSearchConfig.name}</span>
                               </a>
                           </div>
                         </div>
@@ -291,7 +306,7 @@ export default function UltimateCardCarousel({ flowers = [], onNext }: ArcCarous
                           </div>
                           <div className="text-center space-y-1">
                             <p className="font-serif text-lg text-stone-400">待发掘</p>
-                            <p className="text-[10px] uppercase tracking-widest text-stone-600">Unknown Flower</p>
+                            <p className="text-[10px]  tracking-widest text-stone-600">Unknown Flower</p>
                           </div>
                         </div>
                       </div>

@@ -1,16 +1,16 @@
+// app/admin/layout.tsx
 import Link from 'next/link';
-import { Settings, Flower, LayoutDashboard, Home, LogOut, Users, Shield, User } from 'lucide-react';
+// ✅ 新增 Database 图标用于其他配置
+import { Settings, Flower, LayoutDashboard, Home, LogOut, Users, Shield, User, Database } from 'lucide-react';
 import { logout } from '@/app/actions/auth';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
-import HitokotoBox from '@/components/HitokotoBox'; // 引入新组件
+import HitokotoBox from '@/components/HitokotoBox';
 
-// 辅助函数：获取一言 (Server Side Fetch - 初始数据)
 async function getHitokoto() {
   try {
-    // c=d 代表文学类，encode=text 返回纯文本
     const res = await fetch('https://v1.hitokoto.cn/?c=d&encode=text', { 
-      next: { revalidate: 60 }, // 60秒缓存，避免频繁刷新
+      next: { revalidate: 60 },
       method: 'GET'
     });
     if (!res.ok) return null;
@@ -25,7 +25,6 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // 1. 获取当前登录用户信息
   const cookieStore = await cookies();
   const username = cookieStore.get('admin_session')?.value;
   
@@ -40,14 +39,14 @@ export default async function AdminLayout({
 
     if (user) {
       if (user.username === 'admin') {
-        allowedMenus = ['flowers', 'users', 'roles', 'settings'];
+        // ✅ 修改：为 admin 添加 'config' 权限
+        allowedMenus = ['flowers', 'users', 'roles', 'settings', 'config'];
       } else if (user.role?.permissions) {
         allowedMenus = JSON.parse(user.role.permissions);
       }
     }
   }
 
-  // 2. 并行获取一言初始值
   const hitokoto = await getHitokoto();
 
   const MENU_ITEMS = [
@@ -55,9 +54,10 @@ export default async function AdminLayout({
     { code: 'users', label: '用户管理', href: '/admin/users', icon: Users },
     { code: 'roles', label: '角色管理', href: '/admin/roles', icon: Shield },
     { code: 'settings', label: '系统配置', href: '/admin/settings', icon: Settings },
+    // ✅ 新增：其他配置入口
+    { code: 'config', label: '其他配置', href: '/admin/config', icon: Database },
   ];
 
-  // 格式化当前时间
   const currentTime = new Date().toLocaleString('zh-CN', { 
     year: 'numeric', month: '2-digit', day: '2-digit', 
     hour: '2-digit', minute: '2-digit' 
@@ -99,19 +99,12 @@ export default async function AdminLayout({
       </aside>
 
       <main className="flex-1 ml-64 min-h-screen flex flex-col">
-        {/* Header */}
-        {/* FIX: 将 z-index 调整为 200，确保高于编辑模式下的卡片(z-50)和列表项(z-100) */}
         <header className="sticky top-0 z-[200] px-8 py-4 flex justify-end items-center bg-stone-100/80 backdrop-blur-sm gap-4">
-           
-           {/* === 改动：使用 HitokotoBox 客户端组件 === */}
            <HitokotoBox initialText={hitokoto} />
-
-           {/* 当前用户 */}
            <div className="flex items-center gap-2 text-sm text-stone-500 bg-white px-4 h-[38px] rounded-full border border-stone-200 shadow-sm">
              <User size={14} className="text-stone-400" />
              <span>当前用户：<span className="font-bold text-stone-700">{user?.username || '未知用户'}</span></span>
            </div>
-
            <form action={logout}>
              <button type="submit" className="flex items-center gap-2 px-4 h-[38px] bg-white border border-stone-200 shadow-sm rounded-full text-stone-600 text-sm font-medium hover:text-red-600 hover:border-red-100 hover:bg-red-50 transition-all active:scale-95">
                <LogOut size={14} />
@@ -124,7 +117,6 @@ export default async function AdminLayout({
           {children}
         </div>
 
-        {/* 底部版权信息 */}
         <footer className="py-4 text-center border-t border-stone-200 bg-stone-50/50 mt-auto">
            <div className="flex flex-col items-center justify-center gap-1 text-[10px] text-stone-400 font-mono">
               <p>Copyright © {new Date().getFullYear()} Flower Daily. All Rights Reserved.</p>
