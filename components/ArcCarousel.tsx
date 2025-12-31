@@ -235,16 +235,21 @@ export default function UltimateCardCarousel({ flowers = [], onNext }: ArcCarous
                           </div>
 
                           {/* 展开状态下的详细信息 */}
-                          {/* ✅ 修正动画：移除 delay，确保背景和内容同步出现 */}
-                          <div className={`space-y-4 transition-all duration-500 absolute bottom-6 left-6 right-6 ${isExpanded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
-                              <div className="bg-white/10 backdrop-blur-md p-5 rounded-xl border border-white/5 text-sm leading-relaxed shadow-lg">
+                          {/* ✅ 修正动画：
+                              1. duration-700 与标题同步
+                              2. ease-out 加速出现
+                              3. transform-gpu 强制硬件加速解决渲染滞后 
+                          */}
+                          <div className={`space-y-4 transition-all duration-700 ease-out transform-gpu absolute bottom-6 left-6 right-6 ${isExpanded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
+                              {/* ✅ 增强背景：bg-white/20 (提升可见度)
+                              */}
+                              <div className="bg-white/20 backdrop-blur-md p-5 rounded-xl border border-white/10 text-sm leading-relaxed shadow-lg">
                                   <p className="flex gap-2"><span className="text-white/40 min-w-[3em]">花语</span> <span className="text-white/90">{item.data.language}</span></p>
                                   <div className="h-px bg-white/10 my-3" />
                                   <p className="flex gap-2"><span className="text-white/40 min-w-[3em]">习性</span> <span className="text-white/90 line-clamp-3">{item.data.habit}</span></p>
                               </div>
 
                               <div className="flex justify-between items-center px-1">
-                                {/* ✅ 修改：显示 Photo by xxx on Unsplash */}
                                 <div className="text-[10px]  tracking-wider opacity-60 font-medium flex items-center gap-1">
                                     <span>Photo by</span>
                                     <a 
