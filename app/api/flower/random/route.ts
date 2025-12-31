@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Flower } from '@prisma/client';
 
 // 完结时的赞美语料库
 const COMPLIMENTS = [
@@ -12,15 +13,16 @@ const COMPLIMENTS = [
 
 export async function POST(request: Request) {
   try {
-    const { seenIds } = await request.json(); // 获取前端传来的已读 ID 数组
+    const body = await request.json();
+    const seenIds: string[] = body.seenIds || [];
+    const count: number = body.count || 1; // 支持传入 count，默认为 1
 
     // 1. 查询数据库中所有未看过的花朵 ID
-    // 注意：Prisma 不支持直接的 ORDER BY RANDOM()，所以我们先取 ID 列表，在内存中随机
     const availableFlowers = await prisma.flower.findMany({
       where: {
-        id: { notIn: seenIds || [] }
+        id: { notIn: seenIds }
       },
-      select: { id: true } // 只取 ID，减少传输量
+      select: { id: true }
     });
 
     // 2. 判断是否已看完
@@ -32,16 +34,34 @@ export async function POST(request: Request) {
       });
     }
 
-    // 3. 随机抽取一个 ID
-    const randomIndex = Math.floor(Math.random() * availableFlowers.length);
-    const targetId = availableFlowers[randomIndex].id;
+    // 3. 随机抽取 ID
+    const targetFlowers: Flower[] = [];
+    
+    // 如果请求的数量大于剩余数量，则返回所有剩余的
+    const loopCount = Math.min(count, availableFlowers.length);
+    
+    // 简单的随机抽取逻辑 (Fisher-Yates 洗牌的简化版，适合小数据量)
+    // 为了性能，不打乱整个数组，而是随机选 indices
+    const indices = new Set<number>();
+    while (indices.size < loopCount) {
+      const randomIndex = Math.floor(Math.random() * availableFlowers.length);
+      indices.add(randomIndex);
+    }
 
-    // 4. 获取该花朵的完整详情
-    const flower = await prisma.flower.findUnique({
-      where: { id: targetId }
+    const targetIds = Array.from(indices).map(i => availableFlowers[i].id);
+
+    // 4. 获取花朵的完整详情
+    const flowers = await prisma.flower.findMany({
+      where: { id: { in: targetIds } }
     });
 
-    return NextResponse.json({ finished: false, data: flower });
+    // 如果只请求 1 个，保持原有数据结构返回单对象（兼容旧逻辑）
+    // 如果请求 > 1 个，返回数组
+    if (count === 1) {
+       return NextResponse.json({ finished: false, data: flowers[0] });
+    } else {
+       return NextResponse.json({ finished: false, list: flowers });
+    }
 
   } catch (error) {
     console.error(error);

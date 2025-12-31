@@ -1,21 +1,23 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Flower } from '@prisma/client';
 import FlowerCard3D from '@/components/FlowerCard3D';
-import { Loader2, Sparkles, Github, ExternalLink, Package } from 'lucide-react';
+import UltimateCardCarousel from '@/components/ArcCarousel';
+import { Loader2, Sparkles, Github, ExternalLink, Package, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function HomePage() {
   const [viewState, setViewState] = useState<'intro' | 'card'>('intro');
+  const [viewMode, setViewMode] = useState<'single' | 'carousel'>('single');
   const [currentFlower, setCurrentFlower] = useState<Flower | null>(null);
+  const [flowerList, setFlowerList] = useState<Flower[]>([]);
   const [seenIds, setSeenIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [finishedData, setFinishedData] = useState<string | null>(null);
   
-  // === 彩蛋逻辑 ===
   const router = useRouter();
   const clickCountRef = useRef(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -23,44 +25,26 @@ export default function HomePage() {
   const handleEggClick = () => {
     clickCountRef.current += 1;
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-        clickCountRef.current = 0;
-    }, 2000);
+    timerRef.current = setTimeout(() => { clickCountRef.current = 0; }, 2000);
     if (clickCountRef.current >= 5) {
         clickCountRef.current = 0;
         router.push('/login');
     }
   };
 
-  // 获取花朵数据
-  const fetchFlower = async () => {
+  const fetchSingleFlower = async () => {
     if (loading) return;
     setLoading(true);
     try {
       const res = await fetch('/api/flower/random', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ seenIds }),
+        body: JSON.stringify({ seenIds, count: 1 }),
       });
       const data = await res.json();
 
       if (data.finished) {
-        // === 修改：优先获取 Hitokoto，失败则使用默认值 ===
-        try {
-           // 尝试获取一言 (文学类)
-           const hitoRes = await fetch('https://v1.hitokoto.cn/?c=d&encode=text');
-           if (hitoRes.ok) {
-             const text = await hitoRes.text();
-             setFinishedData(text); // 使用一言
-           } else {
-             setFinishedData(data.message); // 回退默认
-           }
-        } catch (e) {
-           console.error("Hitokoto fetch failed", e);
-           setFinishedData(data.message); // 回退默认
-        }
-        setLoading(false);
-        // ===============================================
+         handleFinished(data.message);
       } else {
         const img = new Image();
         img.onload = () => {
@@ -70,33 +54,86 @@ export default function HomePage() {
             if (viewState === 'intro') setViewState('card');
         };
         img.onerror = () => {
-            console.error("图片加载失败:", data.data.imageUrl);
             setLoading(false);
-            alert("图片加载失败，请检查网络或图片链接");
+            alert("图片加载失败");
         };
         img.src = data.data.imageUrl;
       }
     } catch (error) {
-      console.error(error);
       setLoading(false);
-      alert("网络请求失败，请重试");
+      console.error(error);
     }
   };
 
+  const fetchBatchFlowers = async () => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const currentListIds = flowerList.map(f => f.id);
+      const allSeenIds = [...new Set([...seenIds, ...currentListIds])];
+
+      const res = await fetch('/api/flower/random', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seenIds: allSeenIds, count: 10 }),
+      });
+      const data = await res.json();
+
+      if (data.finished) {
+         if (flowerList.length === 0) handleFinished(data.message);
+         setLoading(false);
+      } else {
+         if (data.list && Array.isArray(data.list)) {
+             setFlowerList(prev => {
+                const newFlowers = data.list.filter((f: Flower) => !prev.some(p => p.id === f.id));
+                return [...prev, ...newFlowers];
+             });
+             setSeenIds(prev => [...prev, ...data.list.map((f: Flower) => f.id)]);
+         }
+         setLoading(false);
+         if (viewState === 'intro') setViewState('card');
+      }
+    } catch (error) {
+      setLoading(false);
+      console.error(error);
+    }
+  };
+
+  const handleFinished = async (msg: string) => {
+    try {
+        const hitoRes = await fetch('https://v1.hitokoto.cn/?c=d&encode=text');
+        if (hitoRes.ok) {
+          const text = await hitoRes.text();
+          setFinishedData(text);
+        } else {
+          setFinishedData(msg);
+        }
+     } catch (e) {
+        setFinishedData(msg);
+     }
+     setLoading(false);
+  };
+
   const handleStart = () => {
-    fetchFlower();
+    fetchSingleFlower();
+  };
+
+  const toggleViewMode = () => {
+    const newMode = viewMode === 'single' ? 'carousel' : 'single';
+    setViewMode(newMode);
+    
+    if (newMode === 'carousel' && flowerList.length < 10) {
+        fetchBatchFlowers();
+    }
   };
 
   if (finishedData) {
     return (
       <div className="h-screen w-full bg-stone-900 flex flex-col items-center justify-center p-8 text-center text-white">
         <Sparkles className="text-yellow-400 w-12 h-12 mb-6 animate-pulse" />
-        {/* 显示结语 (Hitokoto 或 默认) */}
-        <h1 className="text-2xl font-serif mb-8 max-w-2xl leading-relaxed italic">
-          “{finishedData}”
-        </h1>
+        <h1 className="text-2xl font-serif mb-8 max-w-2xl leading-relaxed italic">“{finishedData}”</h1>
         <button 
-          onClick={() => { setSeenIds([]); setFinishedData(null); setViewState('intro'); }}
+          onClick={() => { setSeenIds([]); setFlowerList([]); setFinishedData(null); setViewState('intro'); setViewMode('single'); }}
           className="text-stone-400 text-sm underline hover:text-white transition"
         >
           重新开始
@@ -111,10 +148,23 @@ export default function HomePage() {
 
   return (
     <div className="h-screen w-full bg-[#f5f5f5] flex items-center justify-center overflow-hidden relative">
-      
       <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none">
          <span className="text-[25vw] font-serif font-bold text-black">FLOWER</span>
       </div>
+
+      {/* ✅ 修改：右上角切换按钮尺寸优化 */}
+      {viewState === 'card' && (
+        <button
+          onClick={toggleViewMode}
+          className="absolute top-4 right-4 z-50 p-2 bg-white/80 backdrop-blur-md border border-stone-200 rounded-full shadow-md hover:scale-105 transition-all text-stone-500 hover:text-stone-900 group"
+        >
+          {/* 图标尺寸减小到 w-5 h-5 */}
+          <Layers className={`w-5 h-5 ${viewMode === 'carousel' ? 'text-blue-500' : ''}`} />
+          <span className="absolute right-12 top-1/2 -translate-y-1/2 bg-stone-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+            {viewMode === 'single' ? '画廊模式' : '卡片模式'}
+          </span>
+        </button>
+      )}
 
       <AnimatePresence mode="wait">
         {viewState === 'intro' && (
@@ -123,19 +173,12 @@ export default function HomePage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20, filter: 'blur(10px)' }}
-            transition={{ duration: 0.8 }}
             className="text-center z-10"
           >
-            <h1 
-                onClick={handleEggClick}
-                className="text-5xl font-serif font-bold text-stone-800 mb-4 tracking-tight cursor-default select-none active:scale-95 transition-transform"
-                title="Double click? No, 5 times!"
-            >
+            <h1 onClick={handleEggClick} className="text-5xl font-serif font-bold text-stone-800 mb-4 tracking-tight cursor-default select-none active:scale-95 transition-transform">
                 {siteName}
             </h1>
-
             <p className="text-stone-500 mb-12 font-serif italic">送自己一份生活的仪式感</p>
-            
             <button 
               onClick={handleStart}
               disabled={loading}
@@ -147,29 +190,31 @@ export default function HomePage() {
           </motion.div>
         )}
 
-        {viewState === 'card' && currentFlower && (
+        {viewState === 'card' && (
           <motion.div 
-            key="card"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="z-10"
+            key={viewMode}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="z-10 w-full h-full flex items-center justify-center"
           >
-            <FlowerCard3D 
-              flower={currentFlower} 
-              onNext={fetchFlower}
-              loading={loading}
-            />
+            {viewMode === 'single' && currentFlower ? (
+              <FlowerCard3D flower={currentFlower} onNext={fetchSingleFlower} loading={loading} />
+            ) : (
+              <UltimateCardCarousel flowers={flowerList} onNext={fetchBatchFlowers} />
+            )}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {viewState === 'card' && (
-        <footer className="absolute bottom-6 w-full flex justify-center items-center text-xs text-stone-400 z-0 pointer-events-none animate-in fade-in duration-1000">
-          <div className="flex items-center gap-4 bg-white/50 backdrop-blur-sm px-4 py-2 rounded-full border border-stone-200/50 shadow-sm pointer-events-auto transition-opacity hover:opacity-100 opacity-60">
+      {/* ✅ 确保：单卡模式 Footer 包含跳转后台 (Login) 和 GitHub */}
+      {viewState === 'card' && viewMode === 'single' && (
+        <footer className="absolute bottom-6 w-full flex justify-center items-center text-xs text-stone-400 z-50 pointer-events-none">
+          <div className="flex items-center gap-4 bg-white/50 backdrop-blur-sm px-4 py-2 rounded-full border border-stone-200/50 shadow-sm pointer-events-auto opacity-60 hover:opacity-100 transition-opacity">
+              {/* 跳转后台 */}
               <Link 
                 href="/login" 
-                className="font-serif font-medium text-stone-500 hover:text-stone-800 transition-colors cursor-pointer"
+                className="font-serif font-medium text-stone-500 hover:text-stone-800 transition-colors"
               >
                 {siteName}
               </Link>
@@ -180,10 +225,12 @@ export default function HomePage() {
                   {version}
               </span>
               <span className="w-px h-3 bg-stone-300"></span>
+              
+              {/* 跳转仓库 */}
               <a 
                   href={repoUrl} 
                   target="_blank" 
-                  rel="noopener noreferrer"
+                  rel="noopener noreferrer" 
                   className="flex items-center gap-1 hover:text-stone-800 transition-colors"
               >
                   <Github size={10} />
@@ -193,7 +240,6 @@ export default function HomePage() {
           </div>
         </footer>
       )}
-
     </div>
   );
 }
