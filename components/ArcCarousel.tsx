@@ -168,7 +168,7 @@ export default function UltimateCardCarousel({ flowers = [], onNext, searchConfi
       <div 
         className="w-full max-w-7xl relative transition-transform duration-[1500ms]"
         style={{
-          transform: isLoaded ? 'rotate(0deg)' : 'rotate(15deg)',
+          transform: isLoaded ? 'rotate(0deg)' : 'rotate(60deg)',
           transformOrigin: `50% ${CONFIG.RADIUS}`
         }}
       >
