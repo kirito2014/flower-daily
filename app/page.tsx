@@ -7,8 +7,8 @@ import Link from 'next/link';
 import { Flower } from '@prisma/client';
 import FlowerCard3D from '@/components/FlowerCard3D';
 import UltimateCardCarousel from '@/components/ArcCarousel';
-import AmbientBackground from '@/components/AmbientBackground'; // 引入新组件
-import { Loader2, Sparkles, Github, ExternalLink, Package, Layers } from 'lucide-react';
+import AmbientBackground from '@/components/AmbientBackground';
+import { Loader2, Sparkles, Github, ExternalLink, Package, IdCard, GalleryHorizontal } from 'lucide-react'; // ✅ 新增图标导入
 import { motion, AnimatePresence } from 'framer-motion';
 import { getSystemConfigsByKeys } from '@/app/actions/systemConfig';
 
@@ -21,7 +21,6 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [finishedData, setFinishedData] = useState<string | null>(null);
   
-  // 新增：用于 Carousel 模式下的活动图片
   const [activeCarouselFlower, setActiveCarouselFlower] = useState<Flower | null>(null);
 
   const [searchConfig, setSearchConfig] = useState({
@@ -197,22 +196,16 @@ export default function HomePage() {
   const version = process.env.NEXT_PUBLIC_SITE_VERSION || 'v1.1.0';
   const repoUrl = process.env.NEXT_PUBLIC_GITHUB_REPO || 'https://github.com/kirito2014/flower-daily';
 
-  // 计算是否应该显示动态背景
   const showAmbientBackground = viewState === 'card' && viewMode === 'carousel';
 
   return (
     <div className={`h-screen w-full flex items-center justify-center overflow-hidden relative transition-colors duration-1000 ${showAmbientBackground ? 'bg-black' : 'bg-[#f5f5f5]'}`}>
       
-      {/* 动态背景层 (仅在 Carousel 模式显示) */}
       <AmbientBackground 
         isActive={showAmbientBackground}
         imageUrl={activeCarouselFlower?.imageUrl || null}
       />
 
-      {/* FLOWER 背景大字 
-        Carousel 模式下：透明填充 + 白色描边 + 较高不透明度 (实现镂空透视)
-        Single 模式下：黑色填充 + 极低不透明度 (原样)
-      */}
       <div 
         className={`absolute inset-0 flex items-center justify-center pointer-events-none select-none transition-all duration-1000 z-0
           ${showAmbientBackground ? 'opacity-30' : 'opacity-[0.03]'}
@@ -221,28 +214,66 @@ export default function HomePage() {
          <span 
            className={`text-[25vw] font-serif font-bold transition-all duration-1000
              ${showAmbientBackground 
-                ? 'text-transparent' // 透明填充
-                : 'text-black'       // 黑色填充
+                ? 'text-transparent' 
+                : 'text-black'       
              }
            `}
            style={{
-             WebkitTextStroke: showAmbientBackground ? '2px rgba(255,255,255,0.6)' : 'none' // 白色描边
+             WebkitTextStroke: showAmbientBackground ? '2px rgba(255,255,255,0.6)' : 'none' 
            }}
          >
            FLOWER
          </span>
       </div>
 
+      {/* ✅ 升级后的右上角切换按钮 */}
       {viewState === 'card' && (
-        <button
+        <motion.button
           onClick={toggleViewMode}
-          className="absolute top-4 right-4 z-50 p-2 bg-white/80 backdrop-blur-md border border-stone-200 rounded-full shadow-md hover:scale-105 transition-all text-stone-500 hover:text-stone-900 group"
+          className={`absolute top-4 right-4 z-50 p-3 backdrop-blur-md border rounded-full shadow-lg transition-colors duration-500 group outline-none
+            ${viewMode === 'carousel' 
+              ? 'bg-black/20 border-white/10 text-white hover:bg-black/40' // 画廊模式：深色半透明
+              : 'bg-white/80 border-stone-200 text-stone-600 hover:bg-white hover:text-stone-900' // 卡片模式：亮色
+            }
+          `}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
         >
-          <Layers className={`w-5 h-5 ${viewMode === 'carousel' ? 'text-blue-500' : ''}`} />
-          <span className="absolute right-12 top-1/2 -translate-y-1/2 bg-stone-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-            {viewMode === 'single' ? 'Switch to Gallery' : 'Switch to Card'}
+          <AnimatePresence mode="wait" initial={false}>
+            {viewMode === 'single' ? (
+              <motion.div
+                key="to-gallery"
+                initial={{ opacity: 0, rotate: -90, scale: 0.5 }}
+                animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                exit={{ opacity: 0, rotate: 90, scale: 0.5 }}
+                transition={{ duration: 0.3, ease: "backOut" }}
+              >
+                {/* 单卡模式下，显示画廊图标，点击去画廊 */}
+                <GalleryHorizontal className="w-5 h-5" />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="to-card"
+                initial={{ opacity: 0, rotate: 90, scale: 0.5 }}
+                animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                exit={{ opacity: 0, rotate: -90, scale: 0.5 }}
+                transition={{ duration: 0.3, ease: "backOut" }}
+              >
+                {/* 画廊模式下，显示名片图标，点击回单卡 */}
+                <IdCard className="w-5 h-5" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <span className={`absolute right-14 top-1/2 -translate-y-1/2 text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none font-medium tracking-wide shadow-sm
+             ${viewMode === 'carousel' 
+               ? 'bg-white/10 text-white backdrop-blur-md border border-white/10' 
+               : 'bg-stone-800 text-white'
+             }
+          `}>
+            {viewMode === 'single' ? '进入画廊' : '切换卡片'}
           </span>
-        </button>
+        </motion.button>
       )}
 
       <AnimatePresence mode="wait">
@@ -284,7 +315,6 @@ export default function HomePage() {
                 flowers={flowerList} 
                 onNext={fetchBatchFlowers} 
                 searchConfig={searchConfig}
-                // 传递回调更新背景
                 onActiveChange={setActiveCarouselFlower}
               />
             )}
