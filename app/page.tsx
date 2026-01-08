@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { Flower } from '@prisma/client';
 import FlowerCard3D from '@/components/FlowerCard3D';
 import UltimateCardCarousel from '@/components/ArcCarousel';
+import AmbientBackground from '@/components/AmbientBackground'; // 引入新组件
 import { Loader2, Sparkles, Github, ExternalLink, Package, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getSystemConfigsByKeys } from '@/app/actions/systemConfig';
@@ -20,7 +21,9 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [finishedData, setFinishedData] = useState<string | null>(null);
   
-  // 存储搜索配置
+  // 新增：用于 Carousel 模式下的活动图片
+  const [activeCarouselFlower, setActiveCarouselFlower] = useState<Flower | null>(null);
+
   const [searchConfig, setSearchConfig] = useState({
     url: 'https://baike.baidu.com/item/',
     name: '百度百科'
@@ -30,7 +33,6 @@ export default function HomePage() {
   const clickCountRef = useRef(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 初始化加载配置
   useEffect(() => {
     const initSystemConfig = async () => {
       const configs = await getSystemConfigsByKeys([
@@ -39,25 +41,17 @@ export default function HomePage() {
         'search_engine_name'
       ]);
 
-      // 🔍 调试日志：查看数据库返回了什么
-      console.log('=== HomePage System Configs ===', configs);
-      console.log('Key "search_engine_url":', configs['search_engine_url']);
-      console.log('Key "search_engine_name":', configs['search_engine_name']);
-
-      // 1. 设置默认显示模式 (1=画廊, 2=卡片)
       if (configs['main_display_mode'] === '1') {
         setViewMode('carousel');
       } else {
         setViewMode('single');
       }
 
-      // 2. 设置搜索引擎配置
       const newSearchConfig = {
         url: configs['search_engine_url'] || 'https://baike.baidu.com/item/',
         name: configs['search_engine_name'] || '百度百科'
       };
       
-      console.log('=== Applied Search Config ===', newSearchConfig);
       setSearchConfig(newSearchConfig);
     };
     initSystemConfig();
@@ -131,7 +125,6 @@ export default function HomePage() {
              });
              setSeenIds(prev => [...prev, ...data.list.map((f: Flower) => f.id)]);
              
-             // 如果当前没有单卡数据，初始化第一张，确保可切回单卡
              if (!currentFlower && data.list.length > 0) {
                setCurrentFlower(data.list[0]);
              }
@@ -176,7 +169,6 @@ export default function HomePage() {
         fetchBatchFlowers();
     }
     
-    // 切回单卡模式时的保护逻辑
     if (newMode === 'single' && !currentFlower) {
       if (flowerList.length > 0) {
         setCurrentFlower(flowerList[0]);
@@ -205,10 +197,40 @@ export default function HomePage() {
   const version = process.env.NEXT_PUBLIC_SITE_VERSION || 'v1.1.0';
   const repoUrl = process.env.NEXT_PUBLIC_GITHUB_REPO || 'https://github.com/kirito2014/flower-daily';
 
+  // 计算是否应该显示动态背景
+  const showAmbientBackground = viewState === 'card' && viewMode === 'carousel';
+
   return (
-    <div className="h-screen w-full bg-[#f5f5f5] flex items-center justify-center overflow-hidden relative">
-      <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none">
-         <span className="text-[25vw] font-serif font-bold text-black">FLOWER</span>
+    <div className={`h-screen w-full flex items-center justify-center overflow-hidden relative transition-colors duration-1000 ${showAmbientBackground ? 'bg-black' : 'bg-[#f5f5f5]'}`}>
+      
+      {/* 动态背景层 (仅在 Carousel 模式显示) */}
+      <AmbientBackground 
+        isActive={showAmbientBackground}
+        imageUrl={activeCarouselFlower?.imageUrl || null}
+      />
+
+      {/* FLOWER 背景大字 
+        Carousel 模式下：透明填充 + 白色描边 + 较高不透明度 (实现镂空透视)
+        Single 模式下：黑色填充 + 极低不透明度 (原样)
+      */}
+      <div 
+        className={`absolute inset-0 flex items-center justify-center pointer-events-none select-none transition-all duration-1000 z-0
+          ${showAmbientBackground ? 'opacity-30' : 'opacity-[0.03]'}
+        `}
+      >
+         <span 
+           className={`text-[25vw] font-serif font-bold transition-all duration-1000
+             ${showAmbientBackground 
+                ? 'text-transparent' // 透明填充
+                : 'text-black'       // 黑色填充
+             }
+           `}
+           style={{
+             WebkitTextStroke: showAmbientBackground ? '2px rgba(255,255,255,0.6)' : 'none' // 白色描边
+           }}
+         >
+           FLOWER
+         </span>
       </div>
 
       {viewState === 'card' && (
@@ -262,6 +284,8 @@ export default function HomePage() {
                 flowers={flowerList} 
                 onNext={fetchBatchFlowers} 
                 searchConfig={searchConfig}
+                // 传递回调更新背景
+                onActiveChange={setActiveCarouselFlower}
               />
             )}
           </motion.div>

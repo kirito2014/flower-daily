@@ -26,6 +26,7 @@ interface ArcCarouselProps {
   flowers: Flower[];
   onNext: () => void;
   searchConfig?: SearchConfig;
+  onActiveChange?: (flower: Flower | null) => void;
 }
 
 const CONFIG = {
@@ -40,7 +41,7 @@ const CONFIG = {
 
 const TOTAL_SLIDES = 10;
 
-export default function UltimateCardCarousel({ flowers = [], onNext, searchConfig }: ArcCarouselProps) {
+export default function UltimateCardCarousel({ flowers = [], onNext, searchConfig, onActiveChange }: ArcCarouselProps) {
   const swiperRef = useRef<SwiperType | null>(null);
   const [mounted, setMounted] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -49,16 +50,14 @@ export default function UltimateCardCarousel({ flowers = [], onNext, searchConfi
   
   const autoplayTimer = useRef<NodeJS.Timeout | null>(null); 
 
-  // ✅ 使用传进来的配置，增加日志验证
   const currentSearchConfig = searchConfig || {
     url: 'https://baike.baidu.com/item/',
     name: '百度百科'
   };
   
-  // 🔍 调试日志
   useEffect(() => {
     if (mounted) {
-      console.log('ArcCarousel Search Config:', currentSearchConfig);
+      // console.log('ArcCarousel Search Config:', currentSearchConfig);
     }
   }, [mounted, currentSearchConfig]);
 
@@ -76,6 +75,17 @@ export default function UltimateCardCarousel({ flowers = [], onNext, searchConfi
     }
     return items.slice(0, 15); 
   }, [flowers]);
+
+  useEffect(() => {
+    if (onActiveChange && displayItems.length > 0) {
+      const currentItem = displayItems[activeIndex];
+      if (currentItem && currentItem.type === 'real') {
+        onActiveChange(currentItem.data);
+      } else {
+        onActiveChange(null);
+      }
+    }
+  }, [activeIndex, displayItems, onActiveChange]);
 
   useEffect(() => {
     setMounted(true);
@@ -283,7 +293,6 @@ export default function UltimateCardCarousel({ flowers = [], onNext, searchConfi
                                 </div>
                               </div>
 
-                              {/* ✅ 修复：正确渲染动态配置的名称 */}
                               <a 
                                 href={`${currentSearchConfig.url}${encodeURIComponent(item.data.name)}`}
                                 target="_blank" rel="noopener noreferrer"
@@ -291,7 +300,6 @@ export default function UltimateCardCarousel({ flowers = [], onNext, searchConfi
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <Search size={14} className="group-hover:scale-110 transition-transform"/>
-                                {/* ✅ 显示动态名称 */}
                                 <span>{currentSearchConfig.name}</span>
                               </a>
                           </div>
@@ -318,27 +326,28 @@ export default function UltimateCardCarousel({ flowers = [], onNext, searchConfi
           })}
         </Swiper>
       </div>
-
-      <footer className="absolute bottom-6 w-full flex justify-center items-center text-xs text-stone-400 z-50 pointer-events-none">
-          <div className="flex items-center gap-4 bg-white/50 backdrop-blur-sm px-4 py-2 rounded-full border border-stone-200/50 shadow-sm pointer-events-auto opacity-60 hover:opacity-100 transition-opacity">
+      
+      {/* 修改后的 Footer */}
+      <footer className="absolute bottom-6 w-full flex justify-center items-center text-xs text-white/60 z-50 pointer-events-none">
+          <div className="flex items-center gap-4 bg-black/20 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-lg pointer-events-auto opacity-80 hover:opacity-100 transition-all hover:bg-black/40">
               <Link 
                 href="/login" 
-                className="font-serif font-medium text-stone-500 hover:text-stone-800 transition-colors cursor-pointer"
+                className="font-serif font-medium text-white/90 hover:text-white transition-colors cursor-pointer"
               >
                 {siteName}
               </Link>
               
-              <span className="w-px h-3 bg-stone-300"></span>
-              <span className="flex items-center gap-1 font-mono">
+              <span className="w-px h-3 bg-white/20"></span>
+              <span className="flex items-center gap-1 font-mono text-white/70">
                   <Package size={10} />
                   {version}
               </span>
-              <span className="w-px h-3 bg-stone-300"></span>
+              <span className="w-px h-3 bg-white/20"></span>
               <a 
                   href={repoUrl} 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 hover:text-stone-800 transition-colors"
+                  className="flex items-center gap-1 text-white/70 hover:text-white transition-colors"
               >
                   <Github size={10} />
                   <span>GitHub</span>
