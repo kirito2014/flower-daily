@@ -8,7 +8,8 @@ import { Flower } from '@prisma/client';
 import FlowerCard3D from '@/components/FlowerCard3D';
 import UltimateCardCarousel from '@/components/ArcCarousel';
 import AmbientBackground from '@/components/AmbientBackground';
-import { Loader2, Sparkles, Github, ExternalLink, Package, IdCard, GalleryHorizontal } from 'lucide-react'; // ✅ 新增图标导入
+import FlowerOracle from '@/components/FlowerOracle'; // ✅ 引入占卜师组件
+import { Loader2, Sparkles, Github, ExternalLink, Package, IdCard, GalleryHorizontal } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getSystemConfigsByKeys } from '@/app/actions/systemConfig';
 
@@ -177,6 +178,38 @@ export default function HomePage() {
     }
   };
 
+const handleOracleAsk = async (question: string) => {
+  if (!currentFlower) return;
+  
+  // 1. 设置 loading 状态 (如果 FlowerOracle 组件支持 loading prop)
+  // setIsOracleLoading(true); 
+
+  try {
+    const res = await fetch('/api/ai/oracle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        question, 
+        flowerId: currentFlower.id 
+      }),
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      // 成功：显示结果 (建议后续做一个漂亮的 Modal 或气泡组件来展示 data.answer)
+      alert(`🌸 ${currentFlower.name} 的回应：\n\n${data.answer}`);
+    } else {
+      // 失败
+      alert(`占卜失败：${data.error}`);
+    }
+  } catch (error) {
+    alert('网络连接似乎断开了...');
+  } finally {
+    // setIsOracleLoading(false);
+  }
+};
+
   if (finishedData) {
     return (
       <div className="h-screen w-full bg-stone-900 flex flex-col items-center justify-center p-8 text-center text-white">
@@ -226,14 +259,13 @@ export default function HomePage() {
          </span>
       </div>
 
-      {/* ✅ 升级后的右上角切换按钮 */}
       {viewState === 'card' && (
         <motion.button
           onClick={toggleViewMode}
           className={`absolute top-4 right-4 z-50 p-3 backdrop-blur-md border rounded-full shadow-lg transition-colors duration-500 group outline-none
             ${viewMode === 'carousel' 
-              ? 'bg-black/20 border-white/10 text-white hover:bg-black/40' // 画廊模式：深色半透明
-              : 'bg-white/80 border-stone-200 text-stone-600 hover:bg-white hover:text-stone-900' // 卡片模式：亮色
+              ? 'bg-black/20 border-white/10 text-white hover:bg-black/40' 
+              : 'bg-white/80 border-stone-200 text-stone-600 hover:bg-white hover:text-stone-900' 
             }
           `}
           whileHover={{ scale: 1.05 }}
@@ -248,7 +280,6 @@ export default function HomePage() {
                 exit={{ opacity: 0, rotate: 90, scale: 0.5 }}
                 transition={{ duration: 0.3, ease: "backOut" }}
               >
-                {/* 单卡模式下，显示画廊图标，点击去画廊 */}
                 <GalleryHorizontal className="w-5 h-5" />
               </motion.div>
             ) : (
@@ -259,7 +290,6 @@ export default function HomePage() {
                 exit={{ opacity: 0, rotate: -90, scale: 0.5 }}
                 transition={{ duration: 0.3, ease: "backOut" }}
               >
-                {/* 画廊模式下，显示名片图标，点击回单卡 */}
                 <IdCard className="w-5 h-5" />
               </motion.div>
             )}
@@ -306,10 +336,22 @@ export default function HomePage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="z-10 w-full h-full flex items-center justify-center"
+            className="z-10 w-full h-full flex items-center justify-center relative"
           >
             {viewMode === 'single' && currentFlower ? (
-              <FlowerCard3D flower={currentFlower} onNext={fetchSingleFlower} loading={loading} />
+              <>
+                <FlowerCard3D flower={currentFlower} onNext={fetchSingleFlower} loading={loading} />
+                
+                {/* ✅ 花语占卜师输入框 */}
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5, duration: 0.8 }}
+                  className="absolute bottom-24 w-full px-4 z-50 pointer-events-auto"
+                >
+                  <FlowerOracle onAsk={handleOracleAsk} loading={false} />
+                </motion.div>
+              </>
             ) : (
               <UltimateCardCarousel 
                 flowers={flowerList} 
