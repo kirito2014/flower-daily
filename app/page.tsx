@@ -9,6 +9,8 @@ import FlowerCard3D from '@/components/FlowerCard3D';
 import UltimateCardCarousel from '@/components/ArcCarousel';
 import AmbientBackground from '@/components/AmbientBackground';
 import FlowerOracle from '@/components/FlowerOracle'; // ✅ 引入占卜师组件
+import LetterModal from '@/components/LetterModal';   // ✅ 引入信件弹窗组件
+import { useOracleStore } from '@/lib/store/oracleStore'; // ✅ 引入状态管理
 import { Loader2, Sparkles, Github, ExternalLink, Package, IdCard, GalleryHorizontal } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getSystemConfigsByKeys } from '@/app/actions/systemConfig';
@@ -22,6 +24,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [finishedData, setFinishedData] = useState<string | null>(null);
   
+  // Carousel 模式下的背景图状态
   const [activeCarouselFlower, setActiveCarouselFlower] = useState<Flower | null>(null);
 
   const [searchConfig, setSearchConfig] = useState({
@@ -29,10 +32,14 @@ export default function HomePage() {
     name: '百度百科'
   });
   
+  // ✅ 获取 Store 方法
+  const { addLetter } = useOracleStore();
+
   const router = useRouter();
   const clickCountRef = useRef(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // 初始化配置
   useEffect(() => {
     const initSystemConfig = async () => {
       const configs = await getSystemConfigsByKeys([
@@ -178,37 +185,41 @@ export default function HomePage() {
     }
   };
 
-const handleOracleAsk = async (question: string) => {
-  if (!currentFlower) return;
-  
-  // 1. 设置 loading 状态 (如果 FlowerOracle 组件支持 loading prop)
-  // setIsOracleLoading(true); 
+  // ✅ 处理占卜请求：API调用 + 存入信箱
+  const handleOracleAsk = async (question: string) => {
+    if (!currentFlower) return;
+    
+    // 这里可以加一个局部 loading，但 Oracle 组件内部已有 loading 状态
+    try {
+      const res = await fetch('/api/ai/oracle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          question, 
+          flowerId: currentFlower.id 
+        }),
+      });
 
-  try {
-    const res = await fetch('/api/ai/oracle', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        question, 
-        flowerId: currentFlower.id 
-      }),
-    });
+      const data = await res.json();
 
-    const data = await res.json();
+      if (res.ok) {
+        // ✅ 成功：不弹 Alert，而是加入信箱
+        addLetter(currentFlower.name, data.answer);
+        
+        // 简单的 Toast 提示 (可选)
+        const toast = document.createElement('div');
+        toast.innerText = '收到一封新回信';
+        toast.style.cssText = 'position: fixed; top: 10%; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,0.9); color: #333; padding: 8px 16px; border-radius: 20px; font-size: 12px; z-index: 200; box-shadow: 0 4px 12px rgba(0,0,0,0.1); backdrop-filter: blur(4px); pointer-events: none;';
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2500);
 
-    if (res.ok) {
-      // 成功：显示结果 (建议后续做一个漂亮的 Modal 或气泡组件来展示 data.answer)
-      alert(`🌸 ${currentFlower.name} 的回应：\n\n${data.answer}`);
-    } else {
-      // 失败
-      alert(`占卜失败：${data.error}`);
+      } else {
+        alert(`占卜失败：${data.error}`);
+      }
+    } catch (error) {
+      alert('网络连接似乎断开了...');
     }
-  } catch (error) {
-    alert('网络连接似乎断开了...');
-  } finally {
-    // setIsOracleLoading(false);
-  }
-};
+  };
 
   if (finishedData) {
     return (
@@ -234,11 +245,15 @@ const handleOracleAsk = async (question: string) => {
   return (
     <div className={`h-screen w-full flex items-center justify-center overflow-hidden relative transition-colors duration-1000 ${showAmbientBackground ? 'bg-black' : 'bg-[#f5f5f5]'}`}>
       
+      {/* ✅ 全屏信件弹窗 (放在最外层) */}
+      <LetterModal />
+
       <AmbientBackground 
         isActive={showAmbientBackground}
         imageUrl={activeCarouselFlower?.imageUrl || null}
       />
 
+      {/* FLOWER 背景大字 */}
       <div 
         className={`absolute inset-0 flex items-center justify-center pointer-events-none select-none transition-all duration-1000 z-0
           ${showAmbientBackground ? 'opacity-30' : 'opacity-[0.03]'}
@@ -259,6 +274,7 @@ const handleOracleAsk = async (question: string) => {
          </span>
       </div>
 
+      {/* 右上角模式切换按钮 */}
       {viewState === 'card' && (
         <motion.button
           onClick={toggleViewMode}
@@ -307,6 +323,7 @@ const handleOracleAsk = async (question: string) => {
       )}
 
       <AnimatePresence mode="wait">
+        {/* Intro View */}
         {viewState === 'intro' && (
           <motion.div 
             key="intro"
@@ -330,6 +347,7 @@ const handleOracleAsk = async (question: string) => {
           </motion.div>
         )}
 
+        {/* Main Card/Gallery View */}
         {viewState === 'card' && (
           <motion.div 
             key={viewMode}
@@ -342,7 +360,7 @@ const handleOracleAsk = async (question: string) => {
               <>
                 <FlowerCard3D flower={currentFlower} onNext={fetchSingleFlower} loading={loading} />
                 
-                {/* ✅ 花语占卜师输入框 */}
+                {/* ✅ 花语占卜师输入框 (定位在底部) */}
                 <motion.div 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -364,6 +382,7 @@ const handleOracleAsk = async (question: string) => {
         )}
       </AnimatePresence>
 
+      {/* Footer (仅在单卡模式显示) */}
       {viewState === 'card' && viewMode === 'single' && (
         <footer className="absolute bottom-6 w-full flex justify-center items-center text-xs text-stone-400 z-50 pointer-events-none">
           <div className="flex items-center gap-4 bg-white/50 backdrop-blur-sm px-4 py-2 rounded-full border border-stone-200/50 shadow-sm pointer-events-auto opacity-60 hover:opacity-100 transition-opacity">
