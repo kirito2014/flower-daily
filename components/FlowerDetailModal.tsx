@@ -4,7 +4,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Flower } from '@prisma/client';
-import { X, ExternalLink, Camera, Leaf, Hash, Image as ImageIcon } from 'lucide-react';
+import { X, ExternalLink, Camera, Leaf, Hash, Image as ImageIcon, User } from 'lucide-react';
 
 interface FlowerDetailModalProps {
   flower: Flower | null;
@@ -13,6 +13,13 @@ interface FlowerDetailModalProps {
 
 export default function FlowerDetailModal({ flower, onClose }: FlowerDetailModalProps) {
   if (!flower) return null;
+
+  // 格式化日期为：XX年XX月XX日
+  const formattedDate = new Date(flower.createdAt).toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 sm:px-8 py-8 pointer-events-none">
@@ -45,7 +52,7 @@ export default function FlowerDetailModal({ flower, onClose }: FlowerDetailModal
             animate={{ scale: 1 }}
             transition={{ duration: 0.5 }}
           />
-          {/* ✅ 快捷跳转按钮 (悬浮显示) */}
+          {/* 快捷跳转按钮 (悬浮显示) */}
           <a 
             href={flower.sourceUrl || flower.imageUrl} 
             target="_blank" 
@@ -92,15 +99,27 @@ export default function FlowerDetailModal({ flower, onClose }: FlowerDetailModal
               <div>
                 <h3 className="font-bold text-sm text-stone-400 uppercase tracking-wider mb-1">Credit</h3>
                 <div className="flex flex-col gap-2 items-start">
-                   <div className="text-stone-800 font-medium">{flower.photographer || 'Anonymous'}</div>
                    
-                   {/* ✅ 添加 Unsplash / Source 跳转链接 */}
+                   {/* 1. 摄影师链接 (带人头标志) */}
+                   <a 
+                     href={flower.pgsourceUrl || '#'} 
+                     target="_blank" 
+                     rel="noopener noreferrer"
+                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-md text-xs text-stone-600 transition-colors group"
+                   >
+                     <User size={12} className="group-hover:text-blue-500 transition-colors" />
+                     <span className="font-medium">{flower.photographer || 'Anonymous'}</span>
+                     <ExternalLink size={10} className="opacity-50" />
+                   </a>
+                   
+                   {/* 2. 图片来源链接 */}
                    <a 
                      href={flower.sourceUrl || '#'} 
                      target="_blank"
-                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-md text-xs text-stone-600 transition-colors"
+                     rel="noopener noreferrer"
+                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-md text-xs text-stone-600 transition-colors group"
                    >
-                     <ImageIcon size={12} />
+                     <ImageIcon size={12} className="group-hover:text-blue-500 transition-colors" />
                      <span>View on Unsplash</span>
                      <ExternalLink size={10} className="opacity-50" />
                    </a>
@@ -111,7 +130,8 @@ export default function FlowerDetailModal({ flower, onClose }: FlowerDetailModal
 
           <div className="mt-8 pt-8 border-t border-stone-100 flex justify-between items-center text-xs text-stone-400 font-mono">
             <span>ID: {flower.id.slice(0, 8)}</span>
-            <span>{new Date(flower.createdAt).toLocaleDateString()}</span>
+            {/* 修改后的日期格式 */}
+            <span>记录于 {formattedDate}</span>
           </div>
         </div>
       </motion.div>
