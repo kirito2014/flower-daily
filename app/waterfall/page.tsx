@@ -6,13 +6,12 @@ import Link from 'next/link';
 import { Flower } from '@prisma/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Sparkles, Loader2, ToggleLeft, ToggleRight, 
-  Calendar, Info, Layers, ArrowLeft, Home
+  Loader2, ToggleLeft, ToggleRight, 
+  Calendar, Layers, Home, LayoutDashboard 
 } from 'lucide-react';
 
 import MasonryItem from '@/components/MasonryItem';
 import FlowerDetailModal from '@/components/FlowerDetailModal';
-import { getSystemConfigsByKeys } from '@/app/actions/systemConfig';
 
 export default function WaterfallPage() {
   const [flowers, setFlowers] = useState<Flower[]>([]);
@@ -78,8 +77,12 @@ export default function WaterfallPage() {
     }
   };
 
-  const currentDate = new Date().toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric'
+  // ✅ 修改日期格式为中文 (年月日 星期)
+  const currentDate = new Date().toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long'
   });
 
   return (
@@ -98,6 +101,7 @@ export default function WaterfallPage() {
       <header className="sticky top-0 z-40 w-full bg-[#f8f8f8]/80 backdrop-blur-xl border-b border-stone-200/50 transition-all">
         <div className="max-w-[1920px] mx-auto px-6 h-16 flex items-center justify-between">
           
+          {/* 左侧区域 */}
           <div className="flex items-center gap-6">
             <Link href="/" className="group flex items-center gap-2 hover:opacity-80 transition-opacity">
                 <div className="w-8 h-8 bg-stone-900 rounded-lg flex items-center justify-center text-white group-hover:bg-stone-700 transition-colors">
@@ -111,7 +115,9 @@ export default function WaterfallPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          {/* 右侧控制区 */}
+          <div className="flex items-center gap-3">
+            {/* 3D 效果开关 */}
             <button 
               onClick={() => setEnable3D(!enable3D)}
               className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-stone-200 shadow-sm hover:bg-stone-50 transition-colors text-xs font-medium text-stone-600 active:scale-95"
@@ -120,6 +126,15 @@ export default function WaterfallPage() {
               <span className="hidden sm:inline">3D Effect</span>
               {enable3D ? <ToggleRight className="text-green-500" size={20} /> : <ToggleLeft className="text-stone-300" size={20} />}
             </button>
+
+            {/* ✅ 新增：后台跳转按钮 */}
+            <Link 
+              href="/login" 
+              className="flex items-center justify-center w-9 h-9 rounded-full bg-white border border-stone-200 shadow-sm hover:bg-stone-50 hover:text-stone-900 transition-colors text-stone-500 active:scale-95"
+              title="管理后台"
+            >
+               <LayoutDashboard size={16} />
+            </Link>
           </div>
         </div>
       </header>
