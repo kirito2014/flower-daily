@@ -5,41 +5,42 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Flower } from '@prisma/client';
+
 import FlowerCard3D from '@/components/FlowerCard3D';
 import UltimateCardCarousel from '@/components/ArcCarousel';
 import AmbientBackground from '@/components/AmbientBackground';
-import FlowerOracle from '@/components/FlowerOracle'; // ✅ 引入占卜师组件
-import LetterModal from '@/components/LetterModal';   // ✅ 引入信件弹窗组件
-import { useOracleStore } from '@/lib/store/oracleStore'; // ✅ 引入状态管理
-import { Loader2, Sparkles, Github, ExternalLink, Package, IdCard, GalleryHorizontal } from 'lucide-react';
+import FlowerOracle from '@/components/FlowerOracle';
+import LetterModal from '@/components/LetterModal';
+
+import { useOracleStore } from '@/lib/store/oracleStore';
+import { 
+  Loader2, Sparkles, Github, ExternalLink, Package, 
+  IdCard, GalleryHorizontal, Waves 
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getSystemConfigsByKeys } from '@/app/actions/systemConfig';
 
 export default function HomePage() {
   const [viewState, setViewState] = useState<'intro' | 'card'>('intro');
   const [viewMode, setViewMode] = useState<'single' | 'carousel'>('single');
+  
   const [currentFlower, setCurrentFlower] = useState<Flower | null>(null);
   const [flowerList, setFlowerList] = useState<Flower[]>([]);
   const [seenIds, setSeenIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [finishedData, setFinishedData] = useState<string | null>(null);
   
-  // Carousel 模式下的背景图状态
   const [activeCarouselFlower, setActiveCarouselFlower] = useState<Flower | null>(null);
-
   const [searchConfig, setSearchConfig] = useState({
     url: 'https://baike.baidu.com/item/',
     name: '百度百科'
   });
   
-  // ✅ 获取 Store 方法
   const { addLetter } = useOracleStore();
-
   const router = useRouter();
   const clickCountRef = useRef(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 初始化配置
   useEffect(() => {
     const initSystemConfig = async () => {
       const configs = await getSystemConfigsByKeys([
@@ -54,12 +55,10 @@ export default function HomePage() {
         setViewMode('single');
       }
 
-      const newSearchConfig = {
+      setSearchConfig({
         url: configs['search_engine_url'] || 'https://baike.baidu.com/item/',
         name: configs['search_engine_name'] || '百度百科'
-      };
-      
-      setSearchConfig(newSearchConfig);
+      });
     };
     initSystemConfig();
   }, []);
@@ -95,15 +94,10 @@ export default function HomePage() {
             setLoading(false);
             if (viewState === 'intro') setViewState('card');
         };
-        img.onerror = () => {
-            setLoading(false);
-            alert("图片加载失败");
-        };
         img.src = data.data.imageUrl;
       }
     } catch (error) {
       setLoading(false);
-      console.error(error);
     }
   };
 
@@ -125,12 +119,13 @@ export default function HomePage() {
          if (flowerList.length === 0) handleFinished(data.message);
          setLoading(false);
       } else {
-         if (data.list && Array.isArray(data.list)) {
+         if (data.list && Array.isArray(data.list) && data.list.length > 0) {
              setFlowerList(prev => {
-                const newFlowers = data.list.filter((f: Flower) => !prev.some(p => p.id === f.id));
-                return [...prev, ...newFlowers];
+                const existingIds = new Set(prev.map(p => p.id));
+                const uniqueNewFlowers = data.list.filter((f: Flower) => !existingIds.has(f.id));
+                return [...prev, ...uniqueNewFlowers];
              });
-             setSeenIds(prev => [...prev, ...data.list.map((f: Flower) => f.id)]);
+             setSeenIds(prev => [...new Set([...prev, ...data.list.map((f: Flower) => f.id)])]);
              
              if (!currentFlower && data.list.length > 0) {
                setCurrentFlower(data.list[0]);
@@ -141,7 +136,6 @@ export default function HomePage() {
       }
     } catch (error) {
       setLoading(false);
-      console.error(error);
     }
   };
 
@@ -161,58 +155,39 @@ export default function HomePage() {
   };
 
   const handleStart = () => {
-    if (viewMode === 'carousel') {
-      fetchBatchFlowers();
-    } else {
-      fetchSingleFlower();
-    }
+    if (viewMode === 'single') fetchSingleFlower();
+    else fetchBatchFlowers();
   };
 
   const toggleViewMode = () => {
-    const newMode = viewMode === 'single' ? 'carousel' : 'single';
-    setViewMode(newMode);
-    
-    if (newMode === 'carousel' && flowerList.length < 10) {
-        fetchBatchFlowers();
-    }
-    
-    if (newMode === 'single' && !currentFlower) {
-      if (flowerList.length > 0) {
-        setCurrentFlower(flowerList[0]);
-      } else {
-        fetchSingleFlower();
-      }
+    if (viewMode === 'single') {
+        setViewMode('carousel');
+        if (flowerList.length < 10) fetchBatchFlowers();
+    } else {
+        setViewMode('single');
+        if (!currentFlower) {
+            if (flowerList.length > 0) setCurrentFlower(flowerList[0]);
+            else fetchSingleFlower();
+        }
     }
   };
 
-  // ✅ 处理占卜请求：API调用 + 存入信箱
   const handleOracleAsk = async (question: string) => {
     if (!currentFlower) return;
-    
-    // 这里可以加一个局部 loading，但 Oracle 组件内部已有 loading 状态
     try {
       const res = await fetch('/api/ai/oracle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          question, 
-          flowerId: currentFlower.id 
-        }),
+        body: JSON.stringify({ question, flowerId: currentFlower.id }),
       });
-
       const data = await res.json();
-
       if (res.ok) {
-        // ✅ 成功：不弹 Alert，而是加入信箱
         addLetter(currentFlower.name, data.answer);
-        
-        // 简单的 Toast 提示 (可选)
         const toast = document.createElement('div');
         toast.innerText = '收到一封新回信';
-        toast.style.cssText = 'position: fixed; top: 10%; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,0.9); color: #333; padding: 8px 16px; border-radius: 20px; font-size: 12px; z-index: 200; box-shadow: 0 4px 12px rgba(0,0,0,0.1); backdrop-filter: blur(4px); pointer-events: none;';
+        toast.style.cssText = 'position: fixed; top: 10%; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,0.9); color: #333; padding: 8px 16px; border-radius: 20px; font-size: 12px; z-index: 200; backdrop-filter: blur(4px); pointer-events: none;';
         document.body.appendChild(toast);
         setTimeout(() => toast.remove(), 2500);
-
       } else {
         alert(`占卜失败：${data.error}`);
       }
@@ -245,110 +220,94 @@ export default function HomePage() {
   return (
     <div className={`h-screen w-full flex items-center justify-center overflow-hidden relative transition-colors duration-1000 ${showAmbientBackground ? 'bg-black' : 'bg-[#f5f5f5]'}`}>
       
-      {/* ✅ 全屏信件弹窗 (放在最外层) */}
       <LetterModal />
-
-      <AmbientBackground 
-        isActive={showAmbientBackground}
-        imageUrl={activeCarouselFlower?.imageUrl || null}
-      />
+      <AmbientBackground isActive={showAmbientBackground} imageUrl={activeCarouselFlower?.imageUrl || null} />
 
       {/* FLOWER 背景大字 */}
-      <div 
-        className={`absolute inset-0 flex items-center justify-center pointer-events-none select-none transition-all duration-1000 z-0
-          ${showAmbientBackground ? 'opacity-30' : 'opacity-[0.03]'}
-        `}
-      >
-         <span 
-           className={`text-[25vw] font-serif font-bold transition-all duration-1000
-             ${showAmbientBackground 
-                ? 'text-transparent' 
-                : 'text-black'       
-             }
-           `}
-           style={{
-             WebkitTextStroke: showAmbientBackground ? '2px rgba(255,255,255,0.6)' : 'none' 
-           }}
-         >
+      <div className={`absolute inset-0 flex items-center justify-center pointer-events-none select-none transition-all duration-1000 z-0 ${showAmbientBackground ? 'opacity-30' : 'opacity-[0.03]'}`}>
+         <span className={`text-[25vw] font-serif font-bold transition-all duration-1000 ${showAmbientBackground ? 'text-transparent' : 'text-black'}`}
+           style={{ WebkitTextStroke: showAmbientBackground ? '2px rgba(255,255,255,0.6)' : 'none' }}>
            FLOWER
          </span>
       </div>
 
-      {/* 右上角模式切换按钮 */}
+      {/* ✅ 顶部控制按钮组 (Fixed & Floating) */}
       {viewState === 'card' && (
-        <motion.button
-          onClick={toggleViewMode}
-          className={`absolute top-4 right-4 z-50 p-3 backdrop-blur-md border rounded-full shadow-lg transition-colors duration-500 group outline-none
-            ${viewMode === 'carousel' 
-              ? 'bg-black/20 border-white/10 text-white hover:bg-black/40' 
-              : 'bg-white/80 border-stone-200 text-stone-600 hover:bg-white hover:text-stone-900' 
-            }
-          `}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <AnimatePresence mode="wait" initial={false}>
-            {viewMode === 'single' ? (
-              <motion.div
-                key="to-gallery"
-                initial={{ opacity: 0, rotate: -90, scale: 0.5 }}
-                animate={{ opacity: 1, rotate: 0, scale: 1 }}
-                exit={{ opacity: 0, rotate: 90, scale: 0.5 }}
-                transition={{ duration: 0.3, ease: "backOut" }}
-              >
-                <GalleryHorizontal className="w-5 h-5" />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="to-card"
-                initial={{ opacity: 0, rotate: 90, scale: 0.5 }}
-                animate={{ opacity: 1, rotate: 0, scale: 1 }}
-                exit={{ opacity: 0, rotate: -90, scale: 0.5 }}
-                transition={{ duration: 0.3, ease: "backOut" }}
-              >
-                <IdCard className="w-5 h-5" />
-              </motion.div>
-            )}
-          </AnimatePresence>
+        <div className="fixed top-6 right-6 z-50 flex flex-row-reverse items-center gap-2 group">
+            
+            {/* 1. 主切换按钮 (始终显示) */}
+            <motion.button
+                onClick={toggleViewMode}
+                className={`p-3 backdrop-blur-xl border rounded-full shadow-lg transition-all duration-500 group outline-none relative z-20
+                    ${viewMode === 'single' 
+                      ? 'bg-white/60 border-white/40 text-stone-600 hover:bg-white hover:border-white hover:text-stone-900' 
+                      : 'bg-black/30 border-white/10 text-white hover:bg-black/50'
+                    }
+                `}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                title={viewMode === 'single' ? "切换到画廊" : "切换到单张"}
+            >
+                <AnimatePresence mode="wait" initial={false}>
+                    {viewMode === 'single' ? (
+                        <motion.div key="to-gallery"><GalleryHorizontal className="w-5 h-5" /></motion.div>
+                    ) : (
+                        <motion.div key="to-card"><IdCard className="w-5 h-5" /></motion.div>
+                    )}
+                </AnimatePresence>
+            </motion.button>
 
-          <span className={`absolute right-14 top-1/2 -translate-y-1/2 text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none font-medium tracking-wide shadow-sm
-             ${viewMode === 'carousel' 
-               ? 'bg-white/10 text-white backdrop-blur-md border border-white/10' 
-               : 'bg-stone-800 text-white'
-             }
-          `}>
-            {viewMode === 'single' ? '进入画廊' : '切换卡片'}
-          </span>
-        </motion.button>
+            {/* 2. 瀑布流跳转按钮 (悬浮时向左弹出) */}
+            {/* 初始状态：隐藏 + 向右偏移 */}
+            {/* Hover 状态：显示 + 回到原位 */}
+            <div className="overflow-hidden">
+                <motion.div
+                    className="flex items-center"
+                    initial={{ x: 20, opacity: 0, width: 0 }}
+                    animate={{ x: 20, opacity: 0, width: 0 }}
+                    whileHover={{ x: 0, opacity: 1, width: 'auto' }} // 单独 hover 无效，需依靠父级 group hover
+                >
+                    <Link href="/waterfall" prefetch={true}>
+                        <div 
+                            className={`
+                                transform transition-all duration-500 ease-out
+                                opacity-0 translate-x-10 group-hover:translate-x-0 group-hover:opacity-100
+                                p-3 rounded-full shadow-lg backdrop-blur-xl border
+                                flex items-center justify-center
+                                ${showAmbientBackground 
+                                    ? 'bg-black/30 border-white/10 text-white hover:bg-black/50' 
+                                    : 'bg-white/60 border-white/40 text-stone-600 hover:bg-white hover:text-stone-900'
+                                }
+                            `}
+                            title="前往瀑布流花园"
+                        >
+                            <Waves className="w-5 h-5" />
+                        </div>
+                    </Link>
+                </motion.div>
+            </div>
+        </div>
       )}
 
       <AnimatePresence mode="wait">
-        {/* Intro View */}
-        {viewState === 'intro' && (
+        {viewState === 'intro' ? (
           <motion.div 
             key="intro"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20, filter: 'blur(10px)' }}
-            className="text-center z-10"
+            className="text-center z-10 w-full h-full flex flex-col items-center justify-center"
           >
             <h1 onClick={handleEggClick} className="text-5xl font-serif font-bold text-stone-800 mb-4 tracking-tight cursor-default select-none active:scale-95 transition-transform">
                 {siteName}
             </h1>
             <p className="text-stone-500 mb-12 font-serif italic">送自己一份生活的仪式感</p>
-            <button 
-              onClick={handleStart}
-              disabled={loading}
-              className="px-8 py-3 bg-stone-900 text-white rounded-full hover:bg-stone-800 transition-all hover:scale-105 active:scale-95 disabled:opacity-70 flex items-center gap-2 mx-auto shadow-xl"
-            >
+            <button onClick={handleStart} className="px-8 py-3 bg-stone-900 text-white rounded-full hover:bg-stone-800 transition-all hover:scale-105 active:scale-95 shadow-xl flex items-center gap-2">
               {loading ? <Loader2 className="animate-spin w-4 h-4"/> : <Sparkles className="w-4 h-4" />}
               <span>开始旅程 ❀</span>
             </button>
           </motion.div>
-        )}
-
-        {/* Main Card/Gallery View */}
-        {viewState === 'card' && (
+        ) : (
           <motion.div 
             key={viewMode}
             initial={{ opacity: 0 }}
@@ -359,56 +318,26 @@ export default function HomePage() {
             {viewMode === 'single' && currentFlower ? (
               <>
                 <FlowerCard3D flower={currentFlower} onNext={fetchSingleFlower} loading={loading} />
-                
-                {/* ✅ 花语占卜师输入框 (定位在底部) */}
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5, duration: 0.8 }}
-                  className="absolute bottom-24 w-full px-4 z-50 pointer-events-auto"
-                >
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="absolute bottom-24 w-full px-4 z-50 pointer-events-auto">
                   <FlowerOracle onAsk={handleOracleAsk} loading={false} />
                 </motion.div>
               </>
             ) : (
-              <UltimateCardCarousel 
-                flowers={flowerList} 
-                onNext={fetchBatchFlowers} 
-                searchConfig={searchConfig}
-                onActiveChange={setActiveCarouselFlower}
-              />
+              <UltimateCardCarousel flowers={flowerList} onNext={fetchBatchFlowers} searchConfig={searchConfig} onActiveChange={setActiveCarouselFlower} />
             )}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Footer (仅在单卡模式显示) */}
       {viewState === 'card' && viewMode === 'single' && (
         <footer className="absolute bottom-6 w-full flex justify-center items-center text-xs text-stone-400 z-50 pointer-events-none">
           <div className="flex items-center gap-4 bg-white/50 backdrop-blur-sm px-4 py-2 rounded-full border border-stone-200/50 shadow-sm pointer-events-auto opacity-60 hover:opacity-100 transition-opacity">
-              <Link 
-                href="/login" 
-                className="font-serif font-medium text-stone-500 hover:text-stone-800 transition-colors"
-              >
-                {siteName}
-              </Link>
-              
+              <Link href="/login" className="font-serif font-medium text-stone-500 hover:text-stone-800 transition-colors">{siteName}</Link>
               <span className="w-px h-3 bg-stone-300"></span>
-              <span className="flex items-center gap-1 font-mono">
-                  <Package size={10} />
-                  {version}
-              </span>
+              <span className="flex items-center gap-1 font-mono"><Package size={10} />{version}</span>
               <span className="w-px h-3 bg-stone-300"></span>
-              
-              <a 
-                  href={repoUrl} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="flex items-center gap-1 hover:text-stone-800 transition-colors"
-              >
-                  <Github size={10} />
-                  <span>GitHub</span>
-                  <ExternalLink size={8} className="opacity-50" />
+              <a href={repoUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-stone-800 transition-colors">
+                  <Github size={10} /><span>GitHub</span>
               </a>
           </div>
         </footer>
