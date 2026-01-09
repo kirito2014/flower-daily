@@ -22,6 +22,7 @@ import { getSystemConfigsByKeys } from '@/app/actions/systemConfig';
 
 export default function HomePage() {
   const [viewState, setViewState] = useState<'intro' | 'card'>('intro');
+  // ✅ 移除 masonry 状态，主页只负责 单卡/轮播
   const [viewMode, setViewMode] = useState<'single' | 'carousel'>('single');
   
   const [currentFlower, setCurrentFlower] = useState<Flower | null>(null);
@@ -36,6 +37,9 @@ export default function HomePage() {
     name: '百度百科'
   });
   
+  // 用于控制右上角按钮组的悬浮状态
+  const [isHoveringControls, setIsHoveringControls] = useState(false);
+
   const { addLetter } = useOracleStore();
   const router = useRouter();
   const clickCountRef = useRef(0);
@@ -93,6 +97,10 @@ export default function HomePage() {
             setSeenIds(prev => [...prev, data.data.id]);
             setLoading(false);
             if (viewState === 'intro') setViewState('card');
+        };
+        img.onerror = () => {
+            setLoading(false);
+            alert("图片加载失败");
         };
         img.src = data.data.imageUrl;
       }
@@ -231,14 +239,17 @@ export default function HomePage() {
          </span>
       </div>
 
-      {/* ✅ 顶部控制按钮组 (Fixed & Floating) */}
+      {/* ✅ 右上角控制区 - 修复后的悬浮交互 */}
       {viewState === 'card' && (
-        <div className="fixed top-6 right-6 z-50 flex flex-row-reverse items-center gap-2 group">
-            
-            {/* 1. 主切换按钮 (始终显示) */}
+        <div 
+          className="fixed top-6 right-6 z-50 flex items-center flex-row-reverse gap-2"
+          onMouseEnter={() => setIsHoveringControls(true)}
+          onMouseLeave={() => setIsHoveringControls(false)}
+        >
+            {/* 1. 主切换按钮 (始终显示，位于最右侧) */}
             <motion.button
                 onClick={toggleViewMode}
-                className={`p-3 backdrop-blur-xl border rounded-full shadow-lg transition-all duration-500 group outline-none relative z-20
+                className={`p-3 backdrop-blur-xl border rounded-full shadow-lg transition-all duration-500 outline-none relative z-20
                     ${viewMode === 'single' 
                       ? 'bg-white/60 border-white/40 text-stone-600 hover:bg-white hover:border-white hover:text-stone-900' 
                       : 'bg-black/30 border-white/10 text-white hover:bg-black/50'
@@ -257,35 +268,33 @@ export default function HomePage() {
                 </AnimatePresence>
             </motion.button>
 
-            {/* 2. 瀑布流跳转按钮 (悬浮时向左弹出) */}
-            {/* 初始状态：隐藏 + 向右偏移 */}
-            {/* Hover 状态：显示 + 回到原位 */}
-            <div className="overflow-hidden">
-                <motion.div
-                    className="flex items-center"
-                    initial={{ x: 20, opacity: 0, width: 0 }}
-                    animate={{ x: 20, opacity: 0, width: 0 }}
-                    whileHover={{ x: 0, opacity: 1, width: 'auto' }} // 单独 hover 无效，需依靠父级 group hover
-                >
-                    <Link href="/waterfall" prefetch={true}>
-                        <div 
-                            className={`
-                                transform transition-all duration-500 ease-out
-                                opacity-0 translate-x-10 group-hover:translate-x-0 group-hover:opacity-100
-                                p-3 rounded-full shadow-lg backdrop-blur-xl border
-                                flex items-center justify-center
-                                ${showAmbientBackground 
-                                    ? 'bg-black/30 border-white/10 text-white hover:bg-black/50' 
-                                    : 'bg-white/60 border-white/40 text-stone-600 hover:bg-white hover:text-stone-900'
-                                }
-                            `}
-                            title="前往瀑布流花园"
-                        >
-                            <Waves className="w-5 h-5" />
-                        </div>
-                    </Link>
-                </motion.div>
-            </div>
+            {/* 2. 瀑布流跳转按钮 (从右向左滑出) */}
+            <AnimatePresence>
+                {isHoveringControls && (
+                    <motion.div
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20, transition: { duration: 0.2 } }}
+                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                    >
+                        <Link href="/waterfall" prefetch={true}>
+                            <div 
+                                className={`
+                                    p-3 rounded-full shadow-lg backdrop-blur-xl border flex items-center justify-center
+                                    hover:scale-110 transition-transform cursor-pointer
+                                    ${showAmbientBackground 
+                                        ? 'bg-black/30 border-white/10 text-white hover:bg-black/50' 
+                                        : 'bg-white/60 border-white/40 text-stone-600 hover:bg-white hover:text-stone-900'
+                                    }
+                                `}
+                                title="前往瀑布流花园"
+                            >
+                                <Waves className="w-5 h-5" />
+                            </div>
+                        </Link>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
       )}
 
